@@ -1,0 +1,11 @@
+[package]
+name = "haxial"
+version = "0.1.0"
+edition = "2024"
+description = "Common Haxial KDX functionality"
+
+[dependencies]
+bytemuck = "1.22.0"
+#crc32fast = "1.4.2"
+#md-5 = "0.10.6"
+#twofish = "0.7.1"

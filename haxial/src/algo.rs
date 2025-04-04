@@ -58,7 +58,7 @@ pub fn a95a(block: &mut [u8], decrypt: bool) {
 ///
 /// # Safety
 /// Requires that `data.len()` is a multiple of 4 (32-bit aligned)
-pub fn lcx4878(key: &mut u32, data: &mut [u8]) {
+pub fn lcxhx(key: &mut u32, data: &mut [u8]) {
 	assert_eq!(
         data.len() % size_of::<u32>(),
         0,
@@ -89,16 +89,16 @@ mod tests {
 	}
 
 	#[test]
-	fn test_lcx4878_roundtrip() {
+	fn test_lcxhx_roundtrip() {
 		let mut data = b"Does it work?   ".to_vec();
 		let origin = data.clone();
 		let key = 0xDEADBEEF;
 		let mut keymut = key;
 
-		lcx4878(&mut keymut, &mut data[..]);
+		lcxhx(&mut keymut, &mut data[..]);
 		println!("{:08X}\t{:?}", keymut, &data[..]);
 		keymut = key;
-		lcx4878(&mut keymut, &mut data[..]);
+		lcxhx(&mut keymut, &mut data[..]);
 		println!("{:08X}", keymut);
 
 		assert_eq!(origin, data);

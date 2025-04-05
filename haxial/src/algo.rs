@@ -1,5 +1,9 @@
-use bytemuck::cast_slice_mut;
+use bytemuck::{cast_slice, cast_slice_mut};
+use md5::{Md5, Digest};
+use murmur3::murmur3_32;
+use std::io::Cursor;
 use std::mem::size_of;
+
 
 /// Custom cryptographic transform operating on a 128-bit (16-byte) block
 /// 
@@ -47,6 +51,51 @@ pub fn a95a(block: &mut [u8], decrypt: bool) {
 }
 
 
+/// A hybrid cryptographic hash function combining MD5 with custom checksum augmentation.
+///
+/// This algorithm has two distinct modes:
+/// 1. **Empty Input**: Returns a hardcoded 256-bit digest of constant values
+/// 2. **Non-empty Input**: Computes an MD5 hash combined with a custom byte-sum checksum
+///
+/// # Behavior Details
+///   1. Computes standard MD5 hash (first 128 bits of output)
+///   2. Copies MD5 words [0] and [1] to output positions [5] and [6]
+///   3. Computes a byte-sum checksum of input (with byte swapping) for position [7]
+///
+/// # Security Notes
+/// ❗ Not suitable for cryptographic purposes:
+/// - The checksum weakens collision resistance
+/// - Constant fallback breaks pseudorandomness
+/// - MD5 is considered cryptographically broken
+///
+/// # Design Quirks
+/// - The checksum at position [7] uses a byte-swapped sum of all input bytes
+/// - Positions [5..6] duplicate MD5 words [0..1] (purpose unclear)
+pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
+	if input.is_empty() {
+		return [0xEEA339DA, 0x6EBEAECA, 0xD4B6B5E, 0xBA298EBA,
+			0xEFBF5532, 0xC4B5A218, 0x90186095, 0x907D8AF];
+	}
+
+	let mut hasher = Md5::new();
+	hasher.update(&input[..]);
+
+	let hash = hasher.finalize();
+	let mut digest = [0u32; 8];
+
+	digest[0..4].copy_from_slice(cast_slice(&hash[..]));
+	digest[5] = digest[0];
+	digest[6] = digest[1];
+
+	let mut cur = Cursor::new(&input[..]);
+	digest[7] = murmur3_32(&mut cur, 1)
+				.unwrap()
+				.to_be();
+	
+	digest
+}
+
+
 /// Simple XOR cipher with key evolution
 ///
 /// # Arguments
@@ -83,10 +132,21 @@ mod tests {
 		let mut data = [0u8; 16];
 		let orig = [0u8; 16];
 		a95a(&mut data[..], false);
-		println!("{:?}", &data[..]);
 		a95a(&mut data[..], true);
 		assert_eq!(&data[..], &orig[..]);
 	}
+
+
+	#[test]
+	fn test_augmented_md5() {
+		let input = b"Hello world!".to_vec();
+		let digest = augmented_md5(&input[..]);
+		
+		digest.iter()
+			.for_each(|x| print!("{:04X}, ", x));
+		println!();
+	}
+
 
 	#[test]
 	fn test_lcxhx_roundtrip() {
@@ -96,10 +156,8 @@ mod tests {
 		let mut keymut = key;
 
 		lcxhx(&mut keymut, &mut data[..]);
-		println!("{:08X}\t{:?}", keymut, &data[..]);
 		keymut = key;
 		lcxhx(&mut keymut, &mut data[..]);
-		println!("{:08X}", keymut);
 
 		assert_eq!(origin, data);
 	}

@@ -234,7 +234,7 @@ pub fn a95a(block: &mut [u8], decrypt: bool) {
 /// - MD5 is considered cryptographically broken
 ///
 /// # Design Quirks
-/// - The checksum at position [7] uses a byte-swapped sum of all input bytes
+/// - The checksum at position [7] uses a Murmur 3 sum of all input bytes
 /// - Positions [5..6] duplicate MD5 words [0..1] (purpose unclear)
 pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     if input.is_empty() {

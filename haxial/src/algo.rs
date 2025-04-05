@@ -220,12 +220,12 @@ pub fn a95a(block: &mut [u8], decrypt: bool) {
     block[12..16].copy_from_slice(&words[3].to_le_bytes());
 }
 
-/// A hybrid cryptographic hash function combining MD5 with custom checksum augmentation.
+/// A hybrid cryptographic hash function combining MD5 with Murmur 3 checksum augmentation.
 ///
 /// # Behavior Details
 ///   1. Computes standard MD5 hash (first 128 bits of output)
 ///   2. Copies MD5 words [0] and [1] to output positions [5] and [6]
-///   3. Computes a byte-sum checksum of input (with byte swapping) for position [7]
+///   3. Computes a Murmur 3 checksum of input (with byte swapping) for position [7]
 ///
 /// # Security Notes
 /// ❗ Not suitable for cryptographic purposes:

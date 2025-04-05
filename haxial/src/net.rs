@@ -25,6 +25,6 @@ impl Session {
 const fn shuffle64(value: u64, part: u64) -> u64 {
     value & 0xFF000000FF00u64.wrapping_shr(32).wrapping_shl(8)
         | part.wrapping_shr(24)
-        | part.wrapping_shr(8) & 0xFF00
+        | (part.wrapping_shr(8) & 0xFF00)
         | part.wrapping_shl(24)
 }

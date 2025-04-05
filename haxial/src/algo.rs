@@ -116,7 +116,7 @@ pub fn lcx_hx(key: u32, data: &mut [u8]) {
         "Data length must be multiple of 4 bytes"
     );
 
-	let mut key = key;
+    let mut key = key;
     let data32: &mut [u32] = cast_slice_mut(data);
 
     data32.iter_mut().for_each(|w| {

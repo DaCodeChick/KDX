@@ -163,7 +163,7 @@ mod tests {
         ];
         lcg_xor(&mut buf);
         assert_eq!(
-            u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]),
+            u32::from_be_bytes(buf[0..4].try_into().unwrap()),
             0x254B4458
         );
     }

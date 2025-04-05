@@ -29,7 +29,7 @@ Gresh Rock looked expectantly to the last remaining contestant.
 Copyright 2003 Haxial Software. All rights reserved. Unauthorized reproduction prohibited."#;
 
 /// Cryptographic random data generator using a mixing algorithm with
-/// MD5, CRC32, and MurmurHash3 for entropy.
+/// MD5 for entropy.
 pub struct RandomState {
     buf: [u32; 64],
     idx: usize,

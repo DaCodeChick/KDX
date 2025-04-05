@@ -111,9 +111,6 @@ pub fn lcg_xor(input: &mut [u8]) {
 /// * `key` - Initial key value (will be modified during operation)
 /// * `data` - Mutable byte slice to encrypt/decrypt
 ///
-/// # Returns
-/// The final key state after processing
-///
 /// # Safety
 /// Requires that `data.len()` is a multiple of 4 (32-bit aligned)
 pub fn lcxhx(key: &mut u32, data: &mut [u8]) {
@@ -126,7 +123,7 @@ pub fn lcxhx(key: &mut u32, data: &mut [u8]) {
 	let data32: &mut [u32] = cast_slice_mut(data);
 
 	data32.iter_mut().for_each(|w| {
-		*key = key.wrapping_shl(1).wrapping_add(0x4878);
+		*key = key.wrapping_shl(1).wrapping_add(0x4878); // 'Hx'
 		*w ^= key.to_be();
 	});
 }

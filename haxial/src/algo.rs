@@ -104,7 +104,7 @@ pub fn lcg_xor(input: &mut [u8]) {
 /// Simple XOR cipher with key evolution
 ///
 /// # Arguments
-/// * `key` - Initial key value (will be modified during operation)
+/// * `key` - Initial key value
 /// * `data` - Mutable byte slice to encrypt/decrypt
 ///
 /// # Safety

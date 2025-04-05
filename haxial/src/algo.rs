@@ -1,8 +1,179 @@
 use bytemuck::{cast_slice, cast_slice_mut};
+use chrono::Local;
 use md5::{Digest, Md5};
 use murmur3::murmur3_32;
+use std::cmp::min;
 use std::io::Cursor;
 use std::mem::size_of;
+
+const LCG_ADD: u32 = 12345;
+const LCG_MUL: u32 = 0x41C64E6D;
+
+/// The copyright has been abandoned on this watermark.
+const WATERMARK: &str = r#"This program including the following story is Copyright 2003 Haxial Software Pty Ltd and unauthorized reproduction is strictly PROHIBITED.
+Haxial and KDX are trademarks of Haxial Software and unauthorized use is strictly PROHIBITED.
+
+-- Sale of the Cesspool --
+"If you punch Cyclops in the eye, how many eyes does he have left?", asked Gresh Rock, host of Sale of the Cesspool, in front of a packed athenaeum of ogres.
+"Was he punched in the left or right eye?", queried contestant number 1.
+Contestant number 3 interrupted. "My buzzer's not working!!", he yelled furiously as he bashed his red buzzer repeatedly.  A team of goblins rushed on stage and before a moment had elapsed they had disassembled and reassembled the buzzer.
+"Play on!", announced Gresh Rock excitedly.  Contestant 3 beat his opponents as he slammed his fist down onto his newly-fixed buzzer.  BOOOOOOM!!! A thunderous sound rocked the stage as Contestant 3's booth exploded!  The audience burst into riotous laughter, shoving and elbowing each other.
+"Anyone else want to jump in here?" asked Gresh Rock.
+"I know the answer!", said contestant number 2.
+"Well press your buzzer."
+Contestant 2 tentatively pressed his buzzer.  BOOOOOOM!!!  The audience also exploded, but into even more riotous laughter.
+Gresh Rock looked expectantly to the last remaining contestant.
+"umm I don't know", said the last contestant, looking back and forth between his buzzer and the other ex-contestants.
+"Wrong answer!"  BOOOOOOM!!!
+
+Copyright 2003 Haxial Software. All rights reserved. Unauthorized reproduction prohibited."#;
+
+/// Cryptographic random data generator using a mixing algorithm with
+/// MD5, CRC32, and MurmurHash3 for entropy.
+pub struct RandomState {
+    buf: [u32; 64],
+    idx: usize,
+    seed: u32,
+}
+
+impl RandomState {
+    pub fn new() -> Self {
+        Self {
+            buf: [0u32; 64],
+            idx: 0,
+            seed: Local::now().timestamp() as u32,
+        }
+    }
+
+    /// Generates random data into the output buffer
+    ///
+    /// # Arguments
+    /// * `output` - Buffer to fill with random data
+    pub fn generate_random(&mut self, output: &mut [u32]) {
+        let mut remaining = output.len();
+        if remaining == 0 {
+            return;
+        }
+
+        let mut output_ptr = 0;
+
+        while remaining > 0 {
+            // MD5 hash the buffer
+            let mut hasher = Md5::new();
+            hasher.update(cast_slice(&self.buf));
+            let hash_result = hasher.finalize();
+            let xor_result = self.xor_chain(0xFFFFFFFF);
+            let to_copy = min(remaining, 8);
+
+            // Copy hash result to output
+            for i in 0..to_copy {
+                let val = u32::from_le_bytes([
+                    hash_result[i << 2],
+                    hash_result[(i << 2) + 1],
+                    hash_result[(i << 2) + 2],
+                    hash_result[(i << 2) + 3],
+                ]);
+                output[output_ptr + i] = val;
+            }
+
+            output_ptr += to_copy;
+            remaining -= to_copy;
+
+            // Rotate buffer based on XOR result
+            if xor_result & 1 == 0 {
+                // Rotate right by 2 bytes
+                let temp = self.buf[63] >> 16;
+                for i in (1..64).rev() {
+                    self.buf[i] = (self.buf[i] << 16) | (self.buf[i - 1] >> 16);
+                }
+                self.buf[0] = (self.buf[0] << 16) | temp;
+            } else {
+                // Rotate left by 1 byte
+                let temp = self.buf[0] >> 24;
+                for i in 0..63 {
+                    self.buf[i] = (self.buf[i] << 8) | (self.buf[i + 1] >> 24);
+                }
+                self.buf[63] = (self.buf[63] << 8) | temp;
+            }
+
+            // Apply random bit rotations based on random seed
+            let case = Local::now().timestamp() as u32;
+            match case {
+                0 => {
+                    self.buf[1] = self.buf[1].rotate_left(28);
+                    self.buf[3] = self.buf[3].rotate_left(29).wrapping_add(1);
+                    self.buf[10] = self.buf[10].rotate_left(31);
+                    self.buf[24] = self.buf[24].rotate_right(30);
+                    self.buf[45] = self.buf[45].rotate_right(29);
+                    self.buf[48] = self.buf[48].rotate_left(31);
+                    self.buf[54] = self.buf[54].rotate_right(31);
+                    self.buf[55] = self.buf[55].rotate_left(23);
+                }
+                1 => {
+                    self.buf[6] = self.buf[6].rotate_left(31);
+                    self.buf[14] = self.buf[14].rotate_right(29);
+                    self.buf[20] = self.buf[20].rotate_right(31);
+                    self.buf[23] = self.buf[23].rotate_right(27);
+                    self.buf[35] = self.buf[35].rotate_left(14).wrapping_add(1);
+                    self.buf[39] = self.buf[39].rotate_left(31);
+                    self.buf[52] = self.buf[52].rotate_left(31);
+                    self.buf[53] = self.buf[53].rotate_right(25);
+                }
+                2 => {
+                    self.buf[0] = self.buf[0].rotate_left(31);
+                    self.buf[7] = self.buf[7].rotate_right(26);
+                    self.buf[18] = self.buf[18].rotate_left(31);
+                    self.buf[32] = self.buf[32].rotate_right(30);
+                    self.buf[35] = self.buf[35].rotate_left(31);
+                    self.buf[40] = self.buf[40].rotate_right(31);
+                    self.buf[57] = self.buf[57].rotate_left(31);
+                    self.buf[63] = self.buf[63].rotate_right(29).wrapping_add(1);
+                }
+                _ => {
+                    self.buf[2] = self.buf[2].rotate_right(31);
+                    self.buf[9] = self.buf[9].rotate_right(31);
+                    self.buf[21] = self.buf[21].rotate_right(31);
+                    self.buf[30] = self.buf[30].rotate_left(31).wrapping_add(1);
+                    self.buf[45] = self.buf[45].rotate_right(31);
+                    self.buf[49] = self.buf[49].rotate_right(31);
+                    self.buf[53] = self.buf[53].rotate_left(31);
+                    self.buf[56] = self.buf[56].rotate_right(31);
+                }
+            }
+        }
+    }
+
+    /// Pseudo random number generation
+    pub fn random(&mut self) -> u32 {
+        let mut sum = murmur3_32(
+            &mut Cursor::new(cast_slice::<u32, u8>(&self.buf)),
+            self.seed,
+        )
+        .unwrap();
+
+        self.seed = self.seed.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
+        sum ^= self.seed;
+        self.buf[self.idx] ^= sum;
+        self.idx = (sum & 63) as usize;
+
+        sum
+    }
+
+    fn xor_chain(&self, initial: u32) -> u32 {
+        let mut val = !initial;
+        for chunk in self.buf.chunks_exact(8) {
+            val ^= chunk[0]
+                ^ chunk[1]
+                ^ chunk[2]
+                ^ chunk[3]
+                ^ chunk[4]
+                ^ chunk[5]
+                ^ chunk[6]
+                ^ chunk[7];
+        }
+        val
+    }
+}
 
 /// Custom cryptographic transform operating on a 128-bit (16-byte) block
 ///
@@ -82,9 +253,7 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     digest[0..4].copy_from_slice(cast_slice(&hash[..]));
     digest[5] = digest[0];
     digest[6] = digest[1];
-
-    let mut cur = Cursor::new(&input[..]);
-    digest[7] = murmur3_32(&mut cur, 1).unwrap().to_be();
+    digest[7] = murmur3_32(&mut Cursor::new(&input[..]), 1).unwrap().to_be();
 
     digest
 }
@@ -97,7 +266,7 @@ pub fn lcg_xor(input: &mut [u8]) {
 
     data32.iter_mut().for_each(|w| {
         *w ^= state.to_be();
-        state = state.wrapping_mul(0x41C64E6D).wrapping_add(12345);
+        state = state.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
     });
 }
 

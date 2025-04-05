@@ -28,7 +28,7 @@ pub fn a95a(block: &mut [u8], decrypt: bool) {
         words[2] ^= 0xA95A759B;
         words[0] ^= 0x6E7DFD34;
         words[1] ^= 0xE152DA04;
-        words[3] ^= 0x06992E25;
+        words[3] ^= 0x6992E25;
 
         words[2] = words[2].rotate_right(7);
         words[0] = words[0].rotate_left(19);
@@ -38,7 +38,7 @@ pub fn a95a(block: &mut [u8], decrypt: bool) {
         words[0] = words[0].rotate_left(13) ^ 0x6E7DFD34;
         words[1] = words[1].rotate_right(6) ^ 0xE152DA04;
         words[2] = words[2].rotate_left(7) ^ 0xA95A759B;
-        words[3] = words[3].rotate_right(3) ^ 0x06992E25;
+        words[3] = words[3].rotate_right(3) ^ 0x6992E25;
     }
 
     words.iter_mut().for_each(|w| *w = u32::from_be(*w));
@@ -109,17 +109,18 @@ pub fn lcg_xor(input: &mut [u8]) {
 ///
 /// # Safety
 /// Requires that `data.len()` is a multiple of 4 (32-bit aligned)
-pub fn lcxhx(key: &mut u32, data: &mut [u8]) {
+pub fn lcx_hx(key: u32, data: &mut [u8]) {
     assert_eq!(
         data.len() % size_of::<u32>(),
         0,
         "Data length must be multiple of 4 bytes"
     );
 
+	let mut key = key;
     let data32: &mut [u32] = cast_slice_mut(data);
 
     data32.iter_mut().for_each(|w| {
-        *key = key.wrapping_shl(1).wrapping_add(0x4878); // 'Hx'
+        key = key.wrapping_shl(1).wrapping_add(0x4878); // 'Hx'
         *w ^= key.to_be();
     });
 }
@@ -169,15 +170,13 @@ mod tests {
     }
 
     #[test]
-    fn test_lcxhx_roundtrip() {
+    fn test_lcx_hx_roundtrip() {
         let mut data = b"Does it work?   ".to_vec();
         let origin = data.clone();
         let key = 0xDEADBEEF;
-        let mut keymut = key;
 
-        lcxhx(&mut keymut, &mut data[..]);
-        keymut = key;
-        lcxhx(&mut keymut, &mut data[..]);
+        lcx_hx(key, &mut data[..]);
+        lcx_hx(key, &mut data[..]);
 
         assert_eq!(origin, data);
     }

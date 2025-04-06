@@ -9,25 +9,6 @@ use std::mem::size_of;
 const LCG_ADD: u32 = 12345;
 const LCG_MUL: u32 = 0x41C64E6D;
 
-/// The copyright has been abandoned on this watermark.
-const WATERMARK: &[u8] = br#"This program including the following story is Copyright 2003 Haxial Software Pty Ltd and unauthorized reproduction is strictly PROHIBITED.
-Haxial and KDX are trademarks of Haxial Software and unauthorized use is strictly PROHIBITED.
-
--- Sale of the Cesspool --
-"If you punch Cyclops in the eye, how many eyes does he have left?", asked Gresh Rock, host of Sale of the Cesspool, in front of a packed athenaeum of ogres.
-"Was he punched in the left or right eye?", queried contestant number 1.
-Contestant number 3 interrupted. "My buzzer's not working!!", he yelled furiously as he bashed his red buzzer repeatedly.  A team of goblins rushed on stage and before a moment had elapsed they had disassembled and reassembled the buzzer.
-"Play on!", announced Gresh Rock excitedly.  Contestant 3 beat his opponents as he slammed his fist down onto his newly-fixed buzzer.  BOOOOOOM!!! A thunderous sound rocked the stage as Contestant 3's booth exploded!  The audience burst into riotous laughter, shoving and elbowing each other.
-"Anyone else want to jump in here?" asked Gresh Rock.
-"I know the answer!", said contestant number 2.
-"Well press your buzzer."
-Contestant 2 tentatively pressed his buzzer.  BOOOOOOM!!!  The audience also exploded, but into even more riotous laughter.
-Gresh Rock looked expectantly to the last remaining contestant.
-"umm I don't know", said the last contestant, looking back and forth between his buzzer and the other ex-contestants.
-"Wrong answer!"  BOOOOOOM!!!
-
-Copyright 2003 Haxial Software. All rights reserved. Unauthorized reproduction prohibited."#;
-
 /// Cryptographic random data generator using a mixing algorithm with
 /// MD5 for entropy.
 pub struct RandomState {

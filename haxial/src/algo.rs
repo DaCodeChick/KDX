@@ -10,7 +10,7 @@ const LCG_ADD: u32 = 12345;
 const LCG_MUL: u32 = 0x41C64E6D;
 
 /// The copyright has been abandoned on this watermark.
-const WATERMARK: &str = r#"This program including the following story is Copyright 2003 Haxial Software Pty Ltd and unauthorized reproduction is strictly PROHIBITED.
+const WATERMARK: &[u8] = br#"This program including the following story is Copyright 2003 Haxial Software Pty Ltd and unauthorized reproduction is strictly PROHIBITED.
 Haxial and KDX are trademarks of Haxial Software and unauthorized use is strictly PROHIBITED.
 
 -- Sale of the Cesspool --

@@ -28,10 +28,12 @@ Copyright 2003 Haxial Software. All rights reserved. Unauthorized reproduction p
 const KDX: u32 = 0x254B4458;
 const TXP: u32 = 0x25545850;
 
+/// Client<->server connection
 pub struct Connection {
     stream: TcpStream,
 }
 
+/// Client<->server session
 pub struct Session {
     id: u64,
     //key: u32,
@@ -43,6 +45,7 @@ pub struct Session {
 }
 
 impl Session {
+    /// Establishes a new client<->server session, given a connection.
     pub fn new(connection: Arc<Mutex<Connection>>) -> Arc<Mutex<Self>> {
         let time = Local::now().timestamp() as u64;
         let hi = time.wrapping_shr(32) & 0xFFFFFFFF;
@@ -59,13 +62,14 @@ impl Session {
     }
 }
 
-pub enum PacketError<'a> {
-    Align(u8, u8),
-    DataSize(u8), // should this really be a single byte?
-    Key(&'a [u8]),
+pub enum PacketError {
+    Align(u8, u8), // expected, got
+    DataSize(u8),  // should this really be a single byte?
     TXP(u32),
 }
 
+/// A packet of data sent and received between clients
+/// and the server
 #[derive(Default)]
 pub struct Packet {
     key: u32,    // The crypt key is not buffered
@@ -82,19 +86,20 @@ pub struct Packet {
 }
 
 impl Packet {
+    /// A packet will need data provided by the session and a server-side RNG state.
     pub fn new(session: Arc<Mutex<Session>>, rand_state: Arc<Mutex<RandomState>>) -> Self {
         let mut guard = session.lock();
 
-        let rng = {
+        let key = {
             let mut rand = rand_state.lock();
 
             rand.random()
         };
 
-        guard.drm_offset = (rng as u16) % (guard.drm_size - 19);
+        guard.drm_offset = (key as u16) % (guard.drm_size - 19);
 
         Self {
-            key: rng,
+            key: key,
             tag: guard.tag,
             drm_offset: guard.drm_offset,
             id: guard.id,
@@ -139,7 +144,9 @@ impl Packet {
         })
     }
 
-    pub fn to_bytes(&self, plain: bool) -> Vec<u8> {
+    /// Converts the packet to a byte slice. This does not include
+    /// the encryption key.
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![];
 
         buf.put_u32(TXP);
@@ -159,7 +166,7 @@ impl Packet {
             buf.put_bytes(0, buf.len() & 3); // pad to align for encryption
         }
 
-        if !plain {
+        if cfg!(not(debug_assertions)) {
             buf = lcx(self.key, &buf[..]).unwrap().to_vec(); // padding should ensure alignment
         }
 
@@ -167,6 +174,8 @@ impl Packet {
     }
 }
 
+/// Shuffles the bits of a 64-bit value. This is
+/// often used for converting timestamps to user IDs.
 const fn shuffle64(value: u64, part: u64) -> u64 {
     value & 0xFF000000FF00u64.wrapping_shr(32).wrapping_shl(8)
         | part.wrapping_shr(24)

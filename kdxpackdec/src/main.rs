@@ -1,5 +1,5 @@
 use anyhow;
-use haxial::lcx_hx;
+use haxial::lcx;
 use hex;
 use std::{env, fs};
 
@@ -12,10 +12,10 @@ fn main() -> anyhow::Result<()> {
     }
 
     let key = u32::from_str_radix(&args[1][0..8], 16)?;
-    let mut data = hex::decode(&args[1][8..])?;
+    let data = hex::decode(&args[1][8..])?;
 
-    lcx_hx(key, &mut data[..]);
-    fs::write(format!("{:08X}.bin", key), &data[..])?;
+    let dec = lcx(key, &data).unwrap();
+    fs::write(format!("{:08X}.bin", key), &dec)?;
 
     Ok(())
 }

@@ -4,7 +4,6 @@ use md5::{Digest, Md5};
 use murmur3::murmur3_32;
 use std::cmp::min;
 use std::io::Cursor;
-use std::mem::size_of;
 
 const LCG_ADD: u32 = 12345;
 const LCG_MUL: u32 = 0x41C64E6D;
@@ -156,49 +155,10 @@ impl RandomState {
     }
 }
 
-/// Custom cryptographic transform operating on a 128-bit (16-byte) block
-///
-/// # Arguments
-/// * `block` - Mutable 16-byte slice (must be exactly 16 bytes)
-/// * `decrypt` - Boolean flag (false = encrypt, true = decrypt)
-///
-/// # Panics
-/// Will panic if block length != 16 bytes
-pub fn a95a(block: &mut [u8], decrypt: bool) {
-    assert_eq!(block.len(), 16, "Block must be exactly 16 bytes");
-
-    let mut words = [
-        u32::from_le_bytes(block[0..4].try_into().unwrap()),
-        u32::from_le_bytes(block[4..8].try_into().unwrap()),
-        u32::from_le_bytes(block[8..12].try_into().unwrap()),
-        u32::from_le_bytes(block[12..16].try_into().unwrap()),
-    ];
-
-    words.iter_mut().for_each(|w| *w = w.to_be());
-
-    if !decrypt {
-        words[2] ^= 0xA95A759B;
-        words[0] ^= 0x6E7DFD34;
-        words[1] ^= 0xE152DA04;
-        words[3] ^= 0x6992E25;
-
-        words[2] = words[2].rotate_right(7);
-        words[0] = words[0].rotate_left(19);
-        words[1] = words[1].rotate_left(6);
-        words[3] = words[3].rotate_left(3);
-    } else {
-        words[0] = words[0].rotate_left(13) ^ 0x6E7DFD34;
-        words[1] = words[1].rotate_right(6) ^ 0xE152DA04;
-        words[2] = words[2].rotate_left(7) ^ 0xA95A759B;
-        words[3] = words[3].rotate_right(3) ^ 0x6992E25;
-    }
-
-    words.iter_mut().for_each(|w| *w = u32::from_be(*w));
-
-    block[0..4].copy_from_slice(&words[0].to_le_bytes());
-    block[4..8].copy_from_slice(&words[1].to_le_bytes());
-    block[8..12].copy_from_slice(&words[2].to_le_bytes());
-    block[12..16].copy_from_slice(&words[3].to_le_bytes());
+#[derive(Debug)]
+pub enum CryptError {
+	Align(u8, usize), // expected, got
+	Length(usize, usize), // expected, got
 }
 
 /// A hybrid cryptographic hash function combining MD5 with Murmur 3 checksum augmentation.
@@ -239,16 +199,74 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     digest
 }
 
+/// Cryptographic transform operating on a 128-bit (16-byte) block
+///
+/// # Arguments
+/// * `block` - Mutable 16-byte slice (must be exactly 16 bytes)
+/// * `decrypt` - Boolean flag (false = encrypt, true = decrypt)
+pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
+	if block.len() != 16 {
+		return Err(CryptError::Length(16, block.len()));
+	}
+
+	let mut buf = vec![0u8; 16];
+	buf.copy_from_slice(block);
+
+    let mut words = [
+        u32::from_ne_bytes(buf[0..4].try_into().unwrap()),
+        u32::from_ne_bytes(buf[4..8].try_into().unwrap()),
+        u32::from_ne_bytes(buf[8..12].try_into().unwrap()),
+        u32::from_ne_bytes(buf[12..16].try_into().unwrap()),
+    ];
+
+    words.iter_mut().for_each(|w| *w = w.to_be());
+
+    if !decrypt {
+        words[2] ^= 0xA95A759B;
+        words[0] ^= 0x6E7DFD34;
+        words[1] ^= 0xE152DA04;
+        words[3] ^= 0x6992E25;
+
+        words[2] = words[2].rotate_right(7);
+        words[0] = words[0].rotate_left(19);
+        words[1] = words[1].rotate_left(6);
+        words[3] = words[3].rotate_left(3);
+    } else {
+        words[0] = words[0].rotate_left(13) ^ 0x6E7DFD34;
+        words[1] = words[1].rotate_right(6) ^ 0xE152DA04;
+        words[2] = words[2].rotate_left(7) ^ 0xA95A759B;
+        words[3] = words[3].rotate_right(3) ^ 0x6992E25;
+    }
+
+    words.iter_mut().for_each(|w| *w = u32::from_be(*w));
+
+    buf[0..4].copy_from_slice(&words[0].to_ne_bytes());
+    buf[4..8].copy_from_slice(&words[1].to_ne_bytes());
+    buf[8..12].copy_from_slice(&words[2].to_ne_bytes());
+    buf[12..16].copy_from_slice(&words[3].to_ne_bytes());
+
+	Ok(buf)
+}
+
 /// LCG XOR cipher
 /// Warning: Not cryptographically secure.
-pub fn lcg_xor(input: &mut [u8]) {
+pub fn lcg_xor(input: &[u8]) -> Result<Vec<u8>, CryptError> {
+	if input.len() & 3 != 0 {
+		return Err(CryptError::Align(4, input.len() & 3));
+	}
+
+	let mut buf = vec![0u8; input.len()];
+	buf.copy_from_slice(input);
+
     let mut state = 0x9AD22861u32;
-    let data32: &mut [u32] = cast_slice_mut(input);
+    let data32: &mut [u32] = cast_slice_mut(&mut buf[..]);
 
     data32.iter_mut().for_each(|w| {
         *w ^= state.to_be();
         state = state.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
     });
+
+	Ok(buf)
 }
 
 /// Simple XOR cipher with key evolution
@@ -259,20 +277,23 @@ pub fn lcg_xor(input: &mut [u8]) {
 ///
 /// # Safety
 /// Requires that `data.len()` is a multiple of 4 (32-bit aligned)
-pub fn lcx_hx(key: u32, data: &mut [u8]) {
-    assert_eq!(
-        data.len() % size_of::<u32>(),
-        0,
-        "Data length must be multiple of 4 bytes"
-    );
+pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
+	if data.len() & 3 != 0 {
+		return Err(CryptError::Align(4, data.len() & 3));
+	}
+
+	let mut buf = vec![0u8; data.len()];
+	buf.copy_from_slice(data);
 
     let mut key = key;
-    let data32: &mut [u32] = cast_slice_mut(data);
+    let data32: &mut [u32] = cast_slice_mut(&mut buf[..]);
 
     data32.iter_mut().for_each(|w| {
         key = key.wrapping_shl(1).wrapping_add(0x4878); // 'Hx'
         *w ^= key.to_be();
     });
+
+	Ok(buf)
 }
 
 #[cfg(test)]
@@ -280,18 +301,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_a95a_roundtrip() {
-        let mut data = [0u8; 16];
-        let orig = [0u8; 16];
-        a95a(&mut data[..], false);
-        a95a(&mut data[..], true);
-        assert_eq!(&data[..], &orig[..]);
-    }
-
-    #[test]
     fn test_augmented_md5() {
         let input = b"Hello world!".to_vec();
-        let digest = augmented_md5(&input[..]);
+        let digest = augmented_md5(&input);
 
         assert_eq!(
             digest,
@@ -302,9 +314,17 @@ mod tests {
         );
     }
 
+	#[test]
+    fn test_block_crypt_roundtrip() {
+        let data = [0u8; 16];
+        let enc = block_crypt(&data, false).unwrap();
+        let dec = block_crypt(&enc, true).unwrap();
+        assert_eq!(&data[..], &dec[..]);
+    }
+
     #[test]
     fn test_lcg_xor() {
-        let mut buf = [
+        let data = [
             0xBF, 0x99, 0x6C, 0x39, 0x8E, 0x85, 0xA1, 0xD2, 0xCF, 0xB9, 0x00, 0x47, 0xAA, 0x9E,
             0xF0, 0x74, 0x80, 0xA7, 0xE9, 0xCD, 0x7D, 0x1A, 0x7D, 0x9A, 0x6A, 0x9D, 0x5A, 0x3B,
             0x7E, 0xF4, 0x9E, 0xD4, 0x1E, 0x1E, 0x87, 0x89, 0xFA, 0x1E, 0x6B, 0x9A, 0x1F, 0xC1,
@@ -312,22 +332,21 @@ mod tests {
             0xC2, 0xAA, 0x22, 0x5B, 0x66, 0x4A, 0x8A, 0xF8, 0xB7, 0xE4, 0xEB, 0xD1, 0x80, 0xF8,
             0x46, 0x36, 0x92, 0xDE, 0x88, 0x36, 0x6C, 0x19, 0x5E, 0xA4,
         ];
-        lcg_xor(&mut buf);
+        let dec = lcg_xor(&data).unwrap();
         assert_eq!(
-            u32::from_be_bytes(buf[0..4].try_into().unwrap()),
+            u32::from_be_bytes(dec[0..4].try_into().unwrap()),
             0x254B4458
         );
     }
 
     #[test]
-    fn test_lcx_hx_roundtrip() {
-        let mut data = b"Does it work?   ".to_vec();
-        let origin = data.clone();
+    fn test_lcx_roundtrip() {
+        let data = &b"Does it work?   ";
         let key = 0xDEADBEEF;
 
-        lcx_hx(key, &mut data[..]);
-        lcx_hx(key, &mut data[..]);
+        let enc = lcx(key, &data[..]).unwrap();
+        let dec = lcx(key, &enc[..]).unwrap();
 
-        assert_eq!(origin, data);
+        assert_eq!(&dec[..], &data[..]);
     }
 }

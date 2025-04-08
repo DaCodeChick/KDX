@@ -15,19 +15,19 @@ pub struct Connection {
 }
 
 /// Client<->server session
-pub struct Session {
+pub struct Session<'a> {
     id: u64,
     //key: u32,
     tag: u32,
     conn: Arc<Mutex<Connection>>,
     login: [u8; 31],
+	drm: &'a [u8],
     drm_offset: u16,
-    drm_size: u16,
 }
 
-impl Session {
+impl Session<'_> {
     /// Establishes a new client<->server session, given a connection.
-    pub fn new(connection: Arc<Mutex<Connection>>, drm: &[u8]) -> Arc<Mutex<Self>> {
+    pub fn new(connection: Arc<Mutex<Connection>>, drm: &'static [u8]) -> Arc<Mutex<Self>> {
         let time = Local::now().timestamp() as u64;
         let hi = time.wrapping_shr(32) & 0xFFFFFFFF;
         let lo = time & 0xFFFFFFFF;
@@ -37,8 +37,8 @@ impl Session {
             tag: KDX, // always the case?
             conn: Arc::clone(&connection),
             login: [0u8; 31],
+			drm: drm,
             drm_offset: 0,
-            drm_size: drm.len() as u16,
         }))
     }
 }
@@ -77,7 +77,7 @@ impl Packet {
             rand.random()
         };
 
-        guard.drm_offset = (key as u16) % (guard.drm_size - 19);
+        guard.drm_offset = (key as u16) % ((guard.drm.len() - 19) as u16);
 
         Self {
             key: key,

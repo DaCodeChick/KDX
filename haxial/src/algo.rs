@@ -157,8 +157,8 @@ impl RandomState {
 
 #[derive(Debug)]
 pub enum CryptError {
-	Align(u8, usize), // expected, got
-	Length(usize, usize), // expected, got
+    Align(u8, usize),     // expected, got
+    Length(usize, usize), // expected, got
 }
 
 /// A hybrid cryptographic hash function combining MD5 with Murmur 3 checksum augmentation.
@@ -205,12 +205,12 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
 /// * `block` - Mutable 16-byte slice (must be exactly 16 bytes)
 /// * `decrypt` - Boolean flag (false = encrypt, true = decrypt)
 pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
-	if block.len() != 16 {
-		return Err(CryptError::Length(16, block.len()));
-	}
+    if block.len() != 16 {
+        return Err(CryptError::Length(16, block.len()));
+    }
 
-	let mut buf = vec![0u8; 16];
-	buf.copy_from_slice(block);
+    let mut buf = vec![0u8; 16];
+    buf.copy_from_slice(block);
 
     let mut words = [
         u32::from_ne_bytes(buf[0..4].try_into().unwrap()),
@@ -245,18 +245,18 @@ pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
     buf[8..12].copy_from_slice(&words[2].to_ne_bytes());
     buf[12..16].copy_from_slice(&words[3].to_ne_bytes());
 
-	Ok(buf)
+    Ok(buf)
 }
 
 /// LCG XOR cipher
 /// Warning: Not cryptographically secure.
 pub fn lcg_xor(input: &[u8]) -> Result<Vec<u8>, CryptError> {
-	if input.len() & 3 != 0 {
-		return Err(CryptError::Align(4, input.len() & 3));
-	}
+    if input.len() & 3 != 0 {
+        return Err(CryptError::Align(4, input.len() & 3));
+    }
 
-	let mut buf = vec![0u8; input.len()];
-	buf.copy_from_slice(input);
+    let mut buf = vec![0u8; input.len()];
+    buf.copy_from_slice(input);
 
     let mut state = 0x9AD22861u32;
     let data32: &mut [u32] = cast_slice_mut(&mut buf[..]);
@@ -266,7 +266,7 @@ pub fn lcg_xor(input: &[u8]) -> Result<Vec<u8>, CryptError> {
         state = state.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
     });
 
-	Ok(buf)
+    Ok(buf)
 }
 
 /// Simple XOR cipher with key evolution
@@ -278,12 +278,12 @@ pub fn lcg_xor(input: &[u8]) -> Result<Vec<u8>, CryptError> {
 /// # Safety
 /// Requires that `data.len()` is a multiple of 4 (32-bit aligned)
 pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
-	if data.len() & 3 != 0 {
-		return Err(CryptError::Align(4, data.len() & 3));
-	}
+    if data.len() & 3 != 0 {
+        return Err(CryptError::Align(4, data.len() & 3));
+    }
 
-	let mut buf = vec![0u8; data.len()];
-	buf.copy_from_slice(data);
+    let mut buf = vec![0u8; data.len()];
+    buf.copy_from_slice(data);
 
     let mut key = key;
     let data32: &mut [u32] = cast_slice_mut(&mut buf[..]);
@@ -293,7 +293,7 @@ pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
         *w ^= key.to_be();
     });
 
-	Ok(buf)
+    Ok(buf)
 }
 
 #[cfg(test)]
@@ -314,7 +314,7 @@ mod tests {
         );
     }
 
-	#[test]
+    #[test]
     fn test_block_crypt_roundtrip() {
         let data = [0u8; 16];
         let enc = block_crypt(&data, false).unwrap();

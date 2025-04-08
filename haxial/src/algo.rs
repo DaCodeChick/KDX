@@ -210,13 +210,11 @@ pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
     }
 
     let mut buf = vec![0u8; 16];
-    buf.copy_from_slice(block);
-
     let mut words = [
-        u32::from_ne_bytes(buf[0..4].try_into().unwrap()),
-        u32::from_ne_bytes(buf[4..8].try_into().unwrap()),
-        u32::from_ne_bytes(buf[8..12].try_into().unwrap()),
-        u32::from_ne_bytes(buf[12..16].try_into().unwrap()),
+        u32::from_ne_bytes(block[0..4].try_into().unwrap()),
+        u32::from_ne_bytes(block[4..8].try_into().unwrap()),
+        u32::from_ne_bytes(block[8..12].try_into().unwrap()),
+        u32::from_ne_bytes(block[12..16].try_into().unwrap()),
     ];
 
     words.iter_mut().for_each(|w| *w = w.to_be());
@@ -255,18 +253,20 @@ pub fn lcg_xor(input: &[u8]) -> Result<Vec<u8>, CryptError> {
         return Err(CryptError::Align(4, input.len() & 3));
     }
 
-    let mut buf = vec![0u8; input.len()];
-    buf.copy_from_slice(input);
+    let mut output = vec![0u8; input.len()];
+    let out_blocks: &mut [u32] = cast_slice_mut(&mut output[..]);
+    let mut seed = 0x9AD22861u32;
+    let in_blocks: &[u32] = cast_slice(input);
 
-    let mut state = 0x9AD22861u32;
-    let data32: &mut [u32] = cast_slice_mut(&mut buf[..]);
+    in_blocks
+        .iter()
+        .zip(out_blocks.iter_mut())
+        .for_each(|(&input, out)| {
+            *out = input ^ seed.to_be();
+            seed = seed.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
+        });
 
-    data32.iter_mut().for_each(|w| {
-        *w ^= state.to_be();
-        state = state.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
-    });
-
-    Ok(buf)
+    Ok(output)
 }
 
 /// Simple XOR cipher with key evolution
@@ -282,18 +282,49 @@ pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
         return Err(CryptError::Align(4, data.len() & 3));
     }
 
-    let mut buf = vec![0u8; data.len()];
-    buf.copy_from_slice(data);
-
+    let mut output = vec![0u8; data.len()];
+    let out_blocks: &mut [u32] = cast_slice_mut(&mut output[..]);
     let mut key = key;
-    let data32: &mut [u32] = cast_slice_mut(&mut buf[..]);
+    let in_blocks: &[u32] = cast_slice(data);
 
-    data32.iter_mut().for_each(|w| {
-        key = key.wrapping_shl(1).wrapping_add(0x4878); // 'Hx'
-        *w ^= key.to_be();
-    });
+    in_blocks
+        .iter()
+        .zip(out_blocks.iter_mut())
+        .for_each(|(&input, out)| {
+            key = key.wrapping_shl(1).wrapping_add(0x4878); // 'Hx'
+            *out = input ^ key.to_be();
+        });
 
-    Ok(buf)
+    Ok(output)
+}
+
+/// Transforms input data using a rolling XOR operation with byte-swapped seed values.
+///
+/// Processes 4-byte blocks of input data, XORing each with a transformed seed value.
+/// The seed evolves using a specific multiplication and addition algorithm between blocks.
+///
+/// # Safety
+/// - Input length must be a multiple of 4 bytes
+/// - Output buffer must be at least as large as input
+pub fn xor_transform(input: &[u8]) -> Result<Vec<u8>, CryptError> {
+    if input.len() & 3 != 0 {
+        return Err(CryptError::Align(4, input.len() & 3));
+    }
+
+    let in_blocks: &[u32] = cast_slice(input);
+    let mut output = vec![0u8; input.len()];
+    let out_blocks: &mut [u32] = cast_slice_mut(&mut output[..]);
+    let mut seed: u32 = 0xA5A16C4A;
+
+    in_blocks
+        .iter()
+        .zip(out_blocks.iter_mut())
+        .for_each(|(&input, out)| {
+            *out = seed.to_be() ^ input;
+            seed = seed.wrapping_mul(0x41D28485).wrapping_add(12843);
+        });
+
+    Ok(output)
 }
 
 #[cfg(test)]

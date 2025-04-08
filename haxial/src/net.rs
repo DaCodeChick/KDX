@@ -6,7 +6,7 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 
-/// The copyright has been abandoned on this watermark.
+// The copyright has been abandoned on this watermark.
 const WATERMARK: &[u8] = br#"This program including the following story is Copyright 2003 Haxial Software Pty Ltd and unauthorized reproduction is strictly PROHIBITED.
 Haxial and KDX are trademarks of Haxial Software and unauthorized use is strictly PROHIBITED.
 

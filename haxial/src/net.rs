@@ -104,3 +104,17 @@ pub const fn shuffle64(value: u64, part: u64) -> u64 {
         | (part.wrapping_shr(8) & 0xFF00)
         | part.wrapping_shl(24)
 }
+
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_shuffle64() {
+		let data = 0x1234567890ABCDEFu64;
+		let hi = data & 0xFFFFFFFF00000000;
+		let lo = data & 0xFFFFFFFF;
+		let res = (shuffle64(data, lo).wrapping_shl(32)) | (shuffle64(data, hi) & 0xFFFFFFFF);
+
+		assert_eq!(res, 0xEFABAB9034FF7800);
+	}
+}

@@ -1,47 +1,9 @@
-use crate::{RandomState, lcx};
+use crate::lcx;
 
 use bytes::{Buf, BufMut};
-use chrono::Local;
-use parking_lot::Mutex;
-use std::sync::Arc;
-use tokio::net::TcpStream;
 
-const KDX: u32 = 0x254B4458;
-const TXP: u32 = 0x25545850;
-
-/// Client<->server connection
-pub struct Connection {
-    stream: TcpStream,
-}
-
-/// Client<->server session
-pub struct Session<'a> {
-    id: u64,
-    //key: u32,
-    tag: u32,
-    conn: Arc<Mutex<Connection>>,
-    login: [u8; 31],
-    drm: &'a [u8],
-    drm_offset: u16,
-}
-
-impl Session<'_> {
-    /// Establishes a new client<->server session, given a connection.
-    pub fn new(connection: Arc<Mutex<Connection>>, drm: &'static [u8]) -> Arc<Mutex<Self>> {
-        let time = Local::now().timestamp() as u64;
-        let hi = time.wrapping_shr(32);
-        let lo = time & 0xFFFFFFFF;
-
-        Arc::new(Mutex::new(Self {
-            id: shuffle64(time, hi).wrapping_shl(32) | (shuffle64(time, lo) & 0xFFFFFFFF),
-            tag: KDX, // always the case?
-            conn: Arc::clone(&connection),
-            login: [0u8; 31],
-            drm: drm,
-            drm_offset: 0,
-        }))
-    }
-}
+pub const KDX: u32 = 0x254B4458;
+pub const TXP: u32 = 0x25545850;
 
 pub enum PacketError {
     Align(u8, u8), // expected, got
@@ -67,27 +29,6 @@ pub struct Packet {
 }
 
 impl Packet {
-    /// A packet will need data provided by the session and a server-side RNG state.
-    pub fn new(session: Arc<Mutex<Session>>, rand_state: Arc<Mutex<RandomState>>) -> Self {
-        let mut guard = session.lock();
-
-        let key = {
-            let mut rand = rand_state.lock();
-
-            rand.random()
-        };
-
-        guard.drm_offset = (key as u16) % ((guard.drm.len() - 19) as u16);
-
-        Self {
-            key: key,
-            tag: guard.tag,
-            drm_offset: guard.drm_offset,
-            id: guard.id,
-            ..Default::default()
-        }
-    }
-
     pub fn from_bytes(buf: &[u8]) -> Result<Self, PacketError> {
         let mut key = &buf[0..4];
         let key = key.get_u32();
@@ -157,7 +98,7 @@ impl Packet {
 
 /// Shuffles the bits of a 64-bit value. This is
 /// often used for converting timestamps to user IDs.
-const fn shuffle64(value: u64, part: u64) -> u64 {
+pub const fn shuffle64(value: u64, part: u64) -> u64 {
     value & 0xFF000000FF00u64.wrapping_shr(32).wrapping_shl(8)
         | part.wrapping_shr(24)
         | (part.wrapping_shr(8) & 0xFF00)

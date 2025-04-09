@@ -29,7 +29,7 @@ impl Session<'_> {
     /// Establishes a new client<->server session, given a connection.
     pub fn new(connection: Arc<Mutex<Connection>>, drm: &'static [u8]) -> Arc<Mutex<Self>> {
         let time = Local::now().timestamp() as u64;
-        let hi = time.wrapping_shr(32) & 0xFFFFFFFF;
+        let hi = time.wrapping_shr(32);
         let lo = time & 0xFFFFFFFF;
 
         Arc::new(Mutex::new(Self {

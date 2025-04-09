@@ -287,7 +287,7 @@ pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
 }
 
 /// Ranged pseudo random number generation, given a seed and range
-pub fn random_range(mut seed: u32, min: u32, max: u32) -> u32 {
+pub const fn random_range(mut seed: u32, min: u32, max: u32) -> u32 {
     if max < min {
         return 0;
     }

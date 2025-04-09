@@ -236,22 +236,22 @@ pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
 
 /// LCG XOR cipher
 /// Warning: Not cryptographically secure.
-pub fn lcg_xor(input: &[u8]) -> Result<Vec<u8>, CryptError> {
+pub fn lcg_xor(input: &[u8], seed: u32, mul: u32, add: u32) -> Result<Vec<u8>, CryptError> {
     if input.len() & 3 != 0 {
         return Err(CryptError::Align(4, input.len() & 3));
     }
 
     let mut output = vec![0u8; input.len()];
     let out_blocks: &mut [u32] = cast_slice_mut(&mut output[..]);
-    let mut seed = 0x9AD22861u32;
     let in_blocks: &[u32] = cast_slice(input);
+	let mut seed = seed;
 
     in_blocks
         .iter()
         .zip(out_blocks.iter_mut())
         .for_each(|(&input, out)| {
             *out = input ^ seed.to_be();
-            seed = seed.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
+            seed = seed.wrapping_mul(mul).wrapping_add(add);
         });
 
     Ok(output)
@@ -361,7 +361,7 @@ mod tests {
             0xC2, 0xAA, 0x22, 0x5B, 0x66, 0x4A, 0x8A, 0xF8, 0xB7, 0xE4, 0xEB, 0xD1, 0x80, 0xF8,
             0x46, 0x36, 0x92, 0xDE, 0x88, 0x36, 0x6C, 0x19, 0x5E, 0xA4,
         ];
-        let dec = lcg_xor(&data).unwrap();
+        let dec = lcg_xor(&data, 0x9AD22861, LCG_MUL, LCG_ADD).unwrap();
         assert_eq!(
             u32::from_be_bytes(dec[0..4].try_into().unwrap()),
             0x254B4458

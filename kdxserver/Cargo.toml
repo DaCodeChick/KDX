@@ -14,3 +14,11 @@ md-5 = "0.10.6"
 parking_lot = "0.12.3"
 tokio = "1.44.2"
 twofish = "0.7.1"
+
+[profile.release]
+strip = true
+debug = false
+lto = true
+codegen-units = 1
+opt-level = 'z'
+panic = 'abort'

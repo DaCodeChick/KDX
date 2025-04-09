@@ -15,3 +15,11 @@ murmur3 = "0.5.2"
 parking_lot = "0.12.3"
 tokio = { version = "1.44.2", features = ["net", "parking_lot"] }
 #twofish = "0.7.1"
+
+[profile.release]
+strip = true
+debug = false
+lto = true
+codegen-units = 1
+opt-level = 'z'
+panic = 'abort'

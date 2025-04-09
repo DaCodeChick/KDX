@@ -21,7 +21,7 @@ pub struct Session<'a> {
     tag: u32,
     conn: Arc<Mutex<Connection>>,
     login: [u8; 31],
-	drm: &'a [u8],
+    drm: &'a [u8],
     drm_offset: u16,
 }
 
@@ -37,7 +37,7 @@ impl Session<'_> {
             tag: KDX, // always the case?
             conn: Arc::clone(&connection),
             login: [0u8; 31],
-			drm: drm,
+            drm: drm,
             drm_offset: 0,
         }))
     }

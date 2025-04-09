@@ -45,7 +45,9 @@ impl RandomState {
             let mut xor = 0xFFFFFFFF;
             let to_copy = min(remaining, 8);
 
-			self.buf.chunks_exact(8).for_each(|c| c.iter().for_each(|b| xor ^= b));
+            self.buf
+                .chunks_exact(8)
+                .for_each(|c| c.iter().for_each(|b| xor ^= b));
 
             for i in 0..to_copy {
                 let val = u32::from_le_bytes([
@@ -286,12 +288,12 @@ pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
 
 /// Ranged pseudo random number generation, given a seed and range
 pub fn random_range(mut seed: u32, min: u32, max: u32) -> u32 {
-	if max < min {
-		return 0;
-	}
+    if max < min {
+        return 0;
+    }
 
-	seed = seed * LCG_MUL + LCG_ADD;
-	min + seed % ((max - min) + 1)
+    seed = seed * LCG_MUL + LCG_ADD;
+    min + seed % ((max - min) + 1)
 }
 
 /// Transforms input data using a rolling XOR operation with byte-swapped seed values.

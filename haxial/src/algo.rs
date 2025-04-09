@@ -244,7 +244,7 @@ pub fn lcg_xor(input: &[u8], seed: u32, mul: u32, add: u32) -> Result<Vec<u8>, C
     let mut output = vec![0u8; input.len()];
     let out_blocks: &mut [u32] = cast_slice_mut(&mut output[..]);
     let in_blocks: &[u32] = cast_slice(input);
-	let mut seed = seed;
+    let mut seed = seed;
 
     in_blocks
         .iter()

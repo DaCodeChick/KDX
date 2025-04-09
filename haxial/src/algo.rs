@@ -42,10 +42,11 @@ impl RandomState {
             let mut hasher = Md5::new();
             hasher.update(cast_slice(&self.buf));
             let hash_result = hasher.finalize();
-            let xor_result = self.xor_chain(0xFFFFFFFF);
+            let mut xor = 0xFFFFFFFF;
             let to_copy = min(remaining, 8);
 
-            // Copy hash result to output
+			self.buf.chunks_exact(8).for_each(|c| c.iter().for_each(|b| xor ^= b));
+
             for i in 0..to_copy {
                 let val = u32::from_le_bytes([
                     hash_result[i << 2],
@@ -60,7 +61,7 @@ impl RandomState {
             remaining -= to_copy;
 
             // Rotate buffer based on XOR result
-            if xor_result & 1 == 0 {
+            if xor & 1 == 0 {
                 // Rotate right by 2 bytes
                 let temp = self.buf[63] >> 16;
                 for i in (1..64).rev() {
@@ -137,21 +138,6 @@ impl RandomState {
         self.idx = (sum & 63) as usize;
 
         sum
-    }
-
-    fn xor_chain(&self, initial: u32) -> u32 {
-        let mut val = !initial;
-        for chunk in self.buf.chunks_exact(8) {
-            val ^= chunk[0]
-                ^ chunk[1]
-                ^ chunk[2]
-                ^ chunk[3]
-                ^ chunk[4]
-                ^ chunk[5]
-                ^ chunk[6]
-                ^ chunk[7];
-        }
-        val
     }
 }
 

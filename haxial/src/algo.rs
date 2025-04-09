@@ -298,6 +298,16 @@ pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
     Ok(output)
 }
 
+/// Ranged pseudo random number generation, given a seed and range
+pub fn random_range(mut seed: u32, min: u32, max: u32) -> u32 {
+	if max < min {
+		return 0;
+	}
+
+	seed = seed * LCG_MUL + LCG_ADD;
+	min + seed % ((max - min) + 1)
+}
+
 /// Transforms input data using a rolling XOR operation with byte-swapped seed values.
 ///
 /// Processes 4-byte blocks of input data, XORing each with a transformed seed value.

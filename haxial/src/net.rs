@@ -111,11 +111,10 @@ mod tests {
     #[test]
     fn test_shuffle64() {
         let data = 0x1234567890ABCDEFu64;
-        let hi = data & 0xFFFFFFFF00000000;
+        let hi = data >> 32;
         let lo = data & 0xFFFFFFFF;
         let res = (shuffle64(data, lo).wrapping_shl(32)) | (shuffle64(data, hi) & 0xFFFFFFFF);
 
-        println!("{:016X}", res);
-        assert_eq!(res, 0xEF56AB9034567800);
+        assert_eq!(res, 0xEF56AB9078563412);
     }
 }

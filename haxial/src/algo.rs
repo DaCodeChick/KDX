@@ -256,6 +256,16 @@ pub fn file_xfer_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptErro
     Ok(buf)
 }
 
+/// Ranged pseudo random number generation, given a seed and range
+pub const fn random_range(mut seed: u32, min: u32, max: u32) -> u32 {
+    if max < min {
+        return 0;
+    }
+
+    seed = seed.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
+    min.wrapping_add(seed) % ((max - min) + 1)
+}
+
 /// Encrypts or decrypts a network packet for TCP
 ///
 /// # Arguments
@@ -283,16 +293,6 @@ pub fn tcp_packet_crypt(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
         });
 
     Ok(output)
-}
-
-/// Ranged pseudo random number generation, given a seed and range
-pub const fn random_range(mut seed: u32, min: u32, max: u32) -> u32 {
-    if max < min {
-        return 0;
-    }
-
-    seed = seed * LCG_MUL + LCG_ADD;
-    min + seed % ((max - min) + 1)
 }
 
 /// Used for encryption of UDP packets (server<->tracker)

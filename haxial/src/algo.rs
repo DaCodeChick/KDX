@@ -187,12 +187,34 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     digest
 }
 
-/// Cryptographic transform operating on a 128-bit (16-byte) block
+/// This is used for data files pertaining to the original software.
+pub fn data_file_crypt(input: &[u8], seed: u32, mul: u32, add: u32) -> Result<Vec<u8>, CryptError> {
+    if input.len() & 3 != 0 {
+        return Err(CryptError::Align(4, input.len() & 3));
+    }
+
+    let mut output = vec![0u8; input.len()];
+    let out_blocks: &mut [u32] = cast_slice_mut(&mut output[..]);
+    let in_blocks: &[u32] = cast_slice(input);
+    let mut seed = seed;
+
+    in_blocks
+        .iter()
+        .zip(out_blocks.iter_mut())
+        .for_each(|(&input, out)| {
+            *out = input ^ seed.to_be();
+            seed = seed.wrapping_mul(mul).wrapping_add(add);
+        });
+
+    Ok(output)
+}
+
+/// This is used for KDX file transfers.
 ///
 /// # Arguments
 /// * `block` - Mutable 16-byte slice (must be exactly 16 bytes)
 /// * `decrypt` - Boolean flag (false = encrypt, true = decrypt)
-pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
+pub fn file_xfer_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
     if block.len() != 16 {
         return Err(CryptError::Length(16, block.len()));
     }
@@ -234,38 +256,15 @@ pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
     Ok(buf)
 }
 
-/// LCG XOR cipher
-/// Warning: Not cryptographically secure.
-pub fn lcg_xor(input: &[u8], seed: u32, mul: u32, add: u32) -> Result<Vec<u8>, CryptError> {
-    if input.len() & 3 != 0 {
-        return Err(CryptError::Align(4, input.len() & 3));
-    }
-
-    let mut output = vec![0u8; input.len()];
-    let out_blocks: &mut [u32] = cast_slice_mut(&mut output[..]);
-    let in_blocks: &[u32] = cast_slice(input);
-    let mut seed = seed;
-
-    in_blocks
-        .iter()
-        .zip(out_blocks.iter_mut())
-        .for_each(|(&input, out)| {
-            *out = input ^ seed.to_be();
-            seed = seed.wrapping_mul(mul).wrapping_add(add);
-        });
-
-    Ok(output)
-}
-
-/// Simple XOR cipher with key evolution
+/// Encrypts or decrypts a network packet
 ///
 /// # Arguments
 /// * `key` - Initial key value
-/// * `data` - Mutable byte slice to encrypt/decrypt
+/// * `data` - Data to encrypt/decrypt
 ///
 /// # Safety
 /// Requires that `data.len()` is a multiple of 4 (32-bit aligned)
-pub fn lcx(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
+pub fn packet_crypt(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
     if data.len() & 3 != 0 {
         return Err(CryptError::Align(4, data.len() & 3));
     }
@@ -344,15 +343,15 @@ mod tests {
     }
 
     #[test]
-    fn test_block_crypt_roundtrip() {
+    fn test_filer_xfer_crypt_roundtrip() {
         let data = [0u8; 16];
-        let enc = block_crypt(&data, false).unwrap();
-        let dec = block_crypt(&enc, true).unwrap();
+        let enc = file_xfer_crypt(&data, false).unwrap();
+        let dec = file_xfer_crypt(&enc, true).unwrap();
         assert_eq!(&data[..], &dec[..]);
     }
 
     #[test]
-    fn test_lcg_xor() {
+    fn test_data_file_crypt() {
         let data = [
             0xBF, 0x99, 0x6C, 0x39, 0x8E, 0x85, 0xA1, 0xD2, 0xCF, 0xB9, 0x00, 0x47, 0xAA, 0x9E,
             0xF0, 0x74, 0x80, 0xA7, 0xE9, 0xCD, 0x7D, 0x1A, 0x7D, 0x9A, 0x6A, 0x9D, 0x5A, 0x3B,
@@ -361,7 +360,7 @@ mod tests {
             0xC2, 0xAA, 0x22, 0x5B, 0x66, 0x4A, 0x8A, 0xF8, 0xB7, 0xE4, 0xEB, 0xD1, 0x80, 0xF8,
             0x46, 0x36, 0x92, 0xDE, 0x88, 0x36, 0x6C, 0x19, 0x5E, 0xA4,
         ];
-        let dec = lcg_xor(&data, 0x9AD22861, LCG_MUL, LCG_ADD).unwrap();
+        let dec = data_file_crypt(&data, 0x9AD22861, LCG_MUL, LCG_ADD).unwrap();
         assert_eq!(
             u32::from_be_bytes(dec[0..4].try_into().unwrap()),
             0x254B4458
@@ -369,12 +368,12 @@ mod tests {
     }
 
     #[test]
-    fn test_lcx_roundtrip() {
+    fn test_packet_crypt_roundtrip() {
         let data = &b"Does it work?   ";
         let key = 0xDEADBEEF;
 
-        let enc = lcx(key, &data[..]).unwrap();
-        let dec = lcx(key, &enc[..]).unwrap();
+        let enc = packet_crypt(key, &data[..]).unwrap();
+        let dec = packet_crypt(key, &enc[..]).unwrap();
 
         assert_eq!(&dec[..], &data[..]);
     }

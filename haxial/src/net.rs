@@ -32,8 +32,8 @@ impl Packet {
     pub fn from_bytes(buf: &[u8]) -> Result<Self, PacketError> {
         let mut key = &buf[0..4];
         let key = key.get_u32();
-        let buf =
-            lcx(key, &buf[4..]).map_err(|_| PacketError::Align(4, (buf[4..].len() & 3) as u8))?;
+        let buf = packet_crypt(key, &buf[4..])
+            .map_err(|_| PacketError::Align(4, (buf[4..].len() & 3) as u8))?;
         let mut buf = &buf[4..];
 
         let txp = buf.get_u32();
@@ -89,7 +89,7 @@ impl Packet {
         }
 
         if cfg!(not(debug_assertions)) {
-            buf = lcx(self.key, &buf[..]).unwrap().to_vec(); // padding should ensure alignment
+            buf = packet_crypt(self.key, &buf[..]).unwrap().to_vec(); // padding should ensure alignment
         }
 
         buf

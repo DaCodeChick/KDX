@@ -188,6 +188,8 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
 }
 
 /// This is used for data files pertaining to the original software.
+/// It serves no purpose to the KDX network protocol, but is here
+/// for legacy purposes.
 pub fn data_file_crypt(input: &[u8], seed: u32, mul: u32, add: u32) -> Result<Vec<u8>, CryptError> {
     if input.len() & 3 != 0 {
         return Err(CryptError::Align(4, input.len() & 3));

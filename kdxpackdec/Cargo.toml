@@ -8,11 +8,3 @@ description = "A simple KDX CLI packet decryptor"
 haxial = { path = "../haxial" }
 anyhow = "1.0.97"
 hex = "0.4.3"
-
-[profile.release]
-strip = true
-debug = false
-lto = true
-codegen-units = 1
-opt-level = 'z'
-panic = 'abort'

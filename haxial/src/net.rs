@@ -1,4 +1,4 @@
-use crate::packet_crypt;
+use crate::tcp_packet_crypt;
 
 use bytes::{Buf, BufMut};
 
@@ -32,7 +32,7 @@ impl Packet {
     pub fn from_bytes(buf: &[u8]) -> Result<Self, PacketError> {
         let mut key = &buf[0..4];
         let key = key.get_u32();
-        let buf = packet_crypt(key, &buf[4..])
+        let buf = tcp_packet_crypt(key, &buf[4..])
             .map_err(|_| PacketError::Align(4, (buf[4..].len() & 3) as u8))?;
         let mut buf = &buf[4..];
 
@@ -88,9 +88,7 @@ impl Packet {
             buf.put_bytes(0, buf.len() & 3); // pad to align for encryption
         }
 
-        if cfg!(not(debug_assertions)) {
-            buf = packet_crypt(self.key, &buf[..]).unwrap().to_vec(); // padding should ensure alignment
-        }
+        buf = tcp_packet_crypt(self.key, &buf[..]).unwrap().to_vec(); // padding should ensure alignment
 
         buf
     }

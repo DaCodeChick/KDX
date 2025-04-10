@@ -345,14 +345,6 @@ mod tests {
     }
 
     #[test]
-    fn test_filer_xfer_crypt_roundtrip() {
-        let data = [0u8; 16];
-        let enc = file_xfer_crypt(&data, false).unwrap();
-        let dec = file_xfer_crypt(&enc, true).unwrap();
-        assert_eq!(&data[..], &dec[..]);
-    }
-
-    #[test]
     fn test_data_file_crypt() {
         let data = [
             0xBF, 0x99, 0x6C, 0x39, 0x8E, 0x85, 0xA1, 0xD2, 0xCF, 0xB9, 0x00, 0x47, 0xAA, 0x9E,
@@ -367,6 +359,14 @@ mod tests {
             u32::from_be_bytes(dec[0..4].try_into().unwrap()),
             0x254B4458
         );
+    }
+
+    #[test]
+    fn test_file_xfer_crypt_roundtrip() {
+        let data = [0u8; 16];
+        let enc = file_xfer_crypt(&data, false).unwrap();
+        let dec = file_xfer_crypt(&enc, true).unwrap();
+        assert_eq!(&data[..], &dec[..]);
     }
 
     #[test]

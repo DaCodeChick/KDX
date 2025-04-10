@@ -4,8 +4,8 @@ pub mod algo;
 pub use algo::*;
 
 cfg_if! {
-	if #[cfg(feature = "net")] {
-		pub mod net;
-		pub use net::*;
-	}
+    if #[cfg(feature = "net")] {
+        pub mod net;
+        pub use net::*;
+    }
 }

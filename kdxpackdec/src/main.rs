@@ -1,5 +1,5 @@
 use anyhow;
-use haxial::lcx;
+use haxial::tcp_packet_crypt;
 use hex;
 use std::{env, fs};
 
@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     let key = u32::from_str_radix(&args[1][0..8], 16)?;
     let data = hex::decode(&args[1][8..])?;
 
-    let dec = lcx(key, &data).unwrap();
+    let dec = tcp_packet_crypt(key, &data).unwrap();
     fs::write(format!("{:08X}.bin", key), &dec)?;
 
     Ok(())

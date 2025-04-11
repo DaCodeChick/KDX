@@ -1,0 +1,10 @@
+#pragma once
+
+#ifdef _WIN32
+#define HXAPI __declspec(dllexport)
+#else
+#define HXAPI
+#endif // _WIN32
+
+#cmakedefine BIG_ENDIAN @BIG_ENDIAN@
+#cmakedefine SIZEOF_VOID_P @CMAKE_SIZEOF_VOID_P@

@@ -17,3 +17,15 @@ target/
 #.idea/
 
 Cargo.lock
+
+*.o
+*.obj
+*.vcxproj
+*.sln
+.vs/
+*.exe
+*.dll
+*.lib
+*.ilk
+CMakeFiles/
+Makefile

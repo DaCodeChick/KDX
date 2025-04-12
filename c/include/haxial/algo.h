@@ -49,6 +49,12 @@ HXAPI size_t hx_aug_md5(const void *data, size_t len, void *digest);
 
 
 /**
+ * @brief Hashes and returns a checksum using the FNV-1a algorithm on the given data
+ */
+HXAPI uint32_t hx_checksum(const void *data, size_t len, uint32_t seed);
+
+
+/**
  * @brief This is a multi-purpose LCG XOR encryption algorithm used in the KDX protocol.
  */
 HXAPI int hx_crypt(void *data, size_t len, uint32_t seed, uint32_t mul, uint32_t add);

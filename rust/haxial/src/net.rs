@@ -6,7 +6,7 @@ pub const KDX: u32 = 0x254B4458;
 pub const TXP: u32 = 0x25545850;
 
 pub enum PacketError {
-    Align(u8, u8), // expected, got
+    Align(u8, usize), // expected, got
     DataSize(u8),  // should this really be a single byte?
     TXP(u32),
 }
@@ -26,7 +26,7 @@ impl TCPPacket {
         let mut key = &buf[0..4];
         let key = key.get_u32();
         let buf = tcp_packet_crypt(key, &buf[4..])
-            .map_err(|_| PacketError::Align(4, (buf[4..].len() & 3) as u8))?;
+            .map_err(|_| PacketError::Align(4, buf[4..].len() & 3)?;
         let mut buf = &buf[4..];
 
         let txp = buf.get_u32();

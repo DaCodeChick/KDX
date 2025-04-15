@@ -12,7 +12,6 @@ net = ["bytes"]
 bytemuck = "1.22.0"
 bytes = { version = "1.10.1", optional = true }
 cfg-if = "1.0.0"
-chrono = "0.4.40"
 #crc32fast = "1.4.2"
 generic-array = "1.2.0"
 md-5 = "0.10.6"

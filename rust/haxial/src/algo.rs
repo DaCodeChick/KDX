@@ -5,144 +5,6 @@ use murmur3::murmur3_32;
 use std::cmp::min;
 use std::io::Cursor;
 
-const LCG_ADD: u32 = 12345;
-const LCG_MUL: u32 = 0x41C64E6D;
-
-/// Cryptographic random data generator using a mixing algorithm with
-/// MD5 for entropy.
-pub struct RandomState {
-    buf: [u32; 64],
-    idx: usize,
-    seed: u32,
-}
-
-impl RandomState {
-    pub fn new() -> Self {
-        Self {
-            buf: [0u32; 64],
-            idx: 0,
-            seed: Local::now().timestamp() as u32,
-        }
-    }
-
-    /// Generates random data into the output buffer
-    ///
-    /// # Arguments
-    /// * `output` - Buffer to fill with random data
-    pub fn generate_random(&mut self, output: &mut [u32]) {
-        let mut remaining = output.len();
-        if remaining == 0 {
-            return;
-        }
-
-        let mut output_ptr = 0;
-
-        while remaining > 0 {
-            // MD5 hash the buffer
-            let mut hasher = Md5::new();
-            hasher.update(cast_slice(&self.buf));
-            let hash_result = hasher.finalize();
-            let mut xor = 0xFFFFFFFF;
-            let to_copy = min(remaining, 8);
-
-            self.buf
-                .chunks_exact(8)
-                .for_each(|c| c.iter().for_each(|b| xor ^= b));
-
-            for i in 0..to_copy {
-                let val = u32::from_le_bytes([
-                    hash_result[i << 2],
-                    hash_result[(i << 2) + 1],
-                    hash_result[(i << 2) + 2],
-                    hash_result[(i << 2) + 3],
-                ]);
-                output[output_ptr + i] = val;
-            }
-
-            output_ptr += to_copy;
-            remaining -= to_copy;
-
-            // Rotate buffer based on XOR result
-            if xor & 1 == 0 {
-                // Rotate right by 2 bytes
-                let temp = self.buf[63] >> 16;
-                for i in (1..64).rev() {
-                    self.buf[i] = (self.buf[i] << 16) | (self.buf[i - 1] >> 16);
-                }
-                self.buf[0] = (self.buf[0] << 16) | temp;
-            } else {
-                // Rotate left by 1 byte
-                let temp = self.buf[0] >> 24;
-                for i in 0..63 {
-                    self.buf[i] = (self.buf[i] << 8) | (self.buf[i + 1] >> 24);
-                }
-                self.buf[63] = (self.buf[63] << 8) | temp;
-            }
-
-            // Apply random bit rotations based on random seed
-            let case = Local::now().timestamp() as u32;
-            match case {
-                0 => {
-                    self.buf[1] = self.buf[1].rotate_left(28);
-                    self.buf[3] = self.buf[3].rotate_left(29).wrapping_add(1);
-                    self.buf[10] = self.buf[10].rotate_left(31);
-                    self.buf[24] = self.buf[24].rotate_right(30);
-                    self.buf[45] = self.buf[45].rotate_right(29);
-                    self.buf[48] = self.buf[48].rotate_left(31);
-                    self.buf[54] = self.buf[54].rotate_right(31);
-                    self.buf[55] = self.buf[55].rotate_left(23);
-                }
-                1 => {
-                    self.buf[6] = self.buf[6].rotate_left(31);
-                    self.buf[14] = self.buf[14].rotate_right(29);
-                    self.buf[20] = self.buf[20].rotate_right(31);
-                    self.buf[23] = self.buf[23].rotate_right(27);
-                    self.buf[35] = self.buf[35].rotate_left(14).wrapping_add(1);
-                    self.buf[39] = self.buf[39].rotate_left(31);
-                    self.buf[52] = self.buf[52].rotate_left(31);
-                    self.buf[53] = self.buf[53].rotate_right(25);
-                }
-                2 => {
-                    self.buf[0] = self.buf[0].rotate_left(31);
-                    self.buf[7] = self.buf[7].rotate_right(26);
-                    self.buf[18] = self.buf[18].rotate_left(31);
-                    self.buf[32] = self.buf[32].rotate_right(30);
-                    self.buf[35] = self.buf[35].rotate_left(31);
-                    self.buf[40] = self.buf[40].rotate_right(31);
-                    self.buf[57] = self.buf[57].rotate_left(31);
-                    self.buf[63] = self.buf[63].rotate_right(29).wrapping_add(1);
-                }
-                _ => {
-                    self.buf[2] = self.buf[2].rotate_right(31);
-                    self.buf[9] = self.buf[9].rotate_right(31);
-                    self.buf[21] = self.buf[21].rotate_right(31);
-                    self.buf[30] = self.buf[30].rotate_left(31).wrapping_add(1);
-                    self.buf[45] = self.buf[45].rotate_right(31);
-                    self.buf[49] = self.buf[49].rotate_right(31);
-                    self.buf[53] = self.buf[53].rotate_left(31);
-                    self.buf[56] = self.buf[56].rotate_right(31);
-                }
-            }
-        }
-    }
-
-    /// Pseudo random number generation
-    pub fn random(&mut self) -> u32 {
-        let mut sum = murmur3_32(
-            &mut Cursor::new(cast_slice::<u32, u8>(&self.buf)),
-            self.seed,
-        )
-        .unwrap();
-
-        self.seed = self.seed.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
-        sum ^= self.seed;
-        self.buf[self.idx] ^= sum;
-        self.idx = (sum & 63) as usize;
-
-        sum
-    }
-}
-
 #[derive(Debug)]
 pub enum CryptError {
     Align(u8, usize),     // expected, got
@@ -256,16 +118,6 @@ pub fn file_xfer_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptErro
     Ok(buf)
 }
 
-/// Ranged pseudo random number generation, given a seed and range
-pub const fn random_range(mut seed: u32, min: u32, max: u32) -> u32 {
-    if max < min {
-        return 0;
-    }
-
-    seed = seed.wrapping_mul(LCG_MUL).wrapping_add(LCG_ADD);
-    min.wrapping_add(seed) % ((max - min) + 1)
-}
-
 /// Encrypts or decrypts a network packet for TCP
 ///
 /// # Arguments
@@ -330,7 +182,7 @@ mod tests {
             0xC2, 0xAA, 0x22, 0x5B, 0x66, 0x4A, 0x8A, 0xF8, 0xB7, 0xE4, 0xEB, 0xD1, 0x80, 0xF8,
             0x46, 0x36, 0x92, 0xDE, 0x88, 0x36, 0x6C, 0x19, 0x5E, 0xA4,
         ];
-        let dec = data_crypt(&data, 0x9AD22861, LCG_MUL, LCG_ADD).unwrap();
+        let dec = data_crypt(&data, 0x9AD22861, 0x41C64E6D, 12345).unwrap();
         assert_eq!(
             u32::from_be_bytes(dec[0..4].try_into().unwrap()),
             0x254B4458

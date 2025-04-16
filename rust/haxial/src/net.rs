@@ -39,8 +39,8 @@ impl TCPPacket {
         let _ = buf.get_u8(); // assigned an unknown value from session (field29_0x99 in original Win32 decompilation)
         let _ = buf.get_u8(); // observed to have a value of 0
 
-        let data_size = buf.get_u8();
-        if (data_size as usize) < buf.remaining() {
+        let data_size = buf.get_u8() as usize;
+        if data_size < buf.remaining() {
             return Err(PacketError::DataSize(data_size));
         }
 
@@ -55,7 +55,7 @@ impl TCPPacket {
             tag: tag,
             drm_offset: drm_offset,
             id: id,
-            data: buf.take(data_size as usize).into_inner().to_vec(),
+            data: buf.take(data_size).into_inner().to_vec(),
         })
     }
 

@@ -78,8 +78,9 @@ impl TCPPacket {
         buf.put_u16(0);
         buf.put(&self.data[..]);
 
-        if buf.len() & 3 != 0 {
-            buf.put_bytes(0, buf.len() & 3); // pad to align for encryption
+		let pad = buf.len() & 3;
+        if pad != 0 {
+            buf.put_bytes(0, pad); // pad to align for encryption
         }
 
         buf = tcp_packet_crypt(self.key, &buf[4..]).unwrap().to_vec(); // padding should ensure alignment

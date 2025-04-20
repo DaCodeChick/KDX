@@ -80,17 +80,6 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     digest
 }
 
-/// Computes the FNV-1a checksum of the given data
-pub fn checksum(input: &[u8], seed: u32) -> u32 {
-    let mut sum = seed;
-
-    input
-        .iter()
-        .for_each(|b| sum = sum.wrapping_mul(0x1000193) ^ (*b as u32));
-
-    sum
-}
-
 /// Computes the cyclic redundancy code of the given data.
 pub fn crc32(input: &[u8], seed: u32) -> u32 {
     let mut crc = seed;
@@ -169,6 +158,17 @@ pub fn file_xfer_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptErro
     buf[12..16].copy_from_slice(&words[3].to_ne_bytes());
 
     Ok(buf)
+}
+
+/// Computes the FNV-1a checksum of the given data
+pub fn fnv1a(input: &[u8], seed: u32) -> u32 {
+    let mut sum = seed;
+
+    input
+        .iter()
+        .for_each(|b| sum = sum.wrapping_mul(0x1000193) ^ (*b as u32));
+
+    sum
 }
 
 /// Encrypts or decrypts a network packet for TCP
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn test_fnv1a() {
         let data = b"Hello, world!";
-        let sum = checksum(&data[..], 0xDEADBEEF);
+        let sum = fnv1a(&data[..], 0xDEADBEEF);
 
         assert_eq!(0xE1CB7804, sum);
     }

@@ -2,8 +2,7 @@ use crate::tcp_packet_crypt;
 
 use bytes::{Buf, BufMut};
 
-pub const KDX: u32 = 0x254B4458;
-pub const TXP: u32 = 0x25545850;
+const TXP: u32 = 0x25545850;
 
 pub enum PacketError {
     Align(u8, usize), // expected, got

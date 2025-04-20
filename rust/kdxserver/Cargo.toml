@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-haxial = { path = "../haxial" }
+haxial = { path = "../haxial", features = ["net"] }
 bitflags = "2.9.0"
 bytemuck = "1.22.0"
 chrono = "0.4.40"
-crc32fast = "1.4.2"
 generic-array = "1.2.0"
 md-5 = "0.10.6"
 parking_lot = "0.12.3"
+rand = { version = "0.9.1", features = ["thread_rng"] }
 tokio = { version = "1.44.2", features = ["net", "parking_lot"] }
 twofish = "0.7.1"

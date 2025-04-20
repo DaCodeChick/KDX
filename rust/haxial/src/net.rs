@@ -7,7 +7,7 @@ pub const TXP: u32 = 0x25545850;
 
 pub enum PacketError {
     Align(u8, usize), // expected, got
-    DataSize(u8),  // should this really be a single byte?
+    DataSize(u8),     // should this really be a single byte?
     TXP(u32),
 }
 
@@ -26,7 +26,7 @@ impl TCPPacket {
         let mut key = &buf[0..4];
         let key = key.get_u32();
         let buf = tcp_packet_crypt(key, &buf[4..])
-            .map_err(|_| PacketError::Align(4, buf[4..].len() & 3)?;
+            .map_err(|_| PacketError::Align(4, buf[4..].len() & 3))?;
         let mut buf = &buf[4..];
 
         let txp = buf.get_u32();
@@ -78,7 +78,7 @@ impl TCPPacket {
         buf.put_u16(0);
         buf.put(&self.data[..]);
 
-		let pad = buf.len() & 3;
+        let pad = buf.len() & 3;
         if pad != 0 {
             buf.put_bytes(0, pad); // pad to align for encryption
         }

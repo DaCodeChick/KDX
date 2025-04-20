@@ -47,7 +47,7 @@ pub enum CryptError {
 /// # Behavior Details
 ///   1. Computes standard MD5 hash (first 128 bits of output)
 ///   2. Copies MD5 words [0] and [1] to output positions [5] and [6]
-///   3. Computes a Murmur 3 checksum of input (with byte swapping) for position [7]
+///   3. Computes a FNV-1a checksum of input (with byte swapping) for position [7]
 ///
 /// # Security Notes
 /// ❗ Not suitable for cryptographic purposes:
@@ -56,7 +56,7 @@ pub enum CryptError {
 /// - MD5 is considered cryptographically broken
 ///
 /// # Design Quirks
-/// - The checksum at position [7] uses a Murmur 3 sum of all input bytes
+/// - The checksum at position [7] uses a FNV-1a sum of all input bytes
 /// - Positions [5..6] duplicate MD5 words [0..1] (purpose unclear)
 pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     if input.is_empty() {
@@ -75,7 +75,7 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     digest[0..4].copy_from_slice(cast_slice(&hash[..]));
     digest[5] = digest[0];
     digest[6] = digest[1];
-    digest[7] = checksum(&input[..], 1).to_be();
+    digest[7] = fnv1a(&input[..], 1).to_be();
 
     digest
 }

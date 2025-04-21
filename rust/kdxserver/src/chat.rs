@@ -28,13 +28,13 @@ const DRM_USER: [&[u8]; 6] = [
 pub struct Chat<'a> {
     created: i64,
     name: Vec<u8>,
-    desc: Vec<u8>,
+    topic: Vec<u8>,
     drm_msg: Option<&'a [u8]>,
     drm_user: Option<&'a [u8]>,
 }
 
 impl Chat<'_> {
-	pub fn new(name: &[u8], description: &[u8]) -> Arc<Mutex<Self>> {
+	pub fn new(name: &[u8], topic: &[u8]) -> Arc<Mutex<Self>> {
 		let seed: usize = random_range(0, 300);
 		let msg = if seed < 10 { Some(DRM_MSG[seed]) } else { None };
 		let user = match seed {
@@ -50,7 +50,7 @@ impl Chat<'_> {
 		Arc::new(Mutex::new(Self {
 			created: Local::now().timestamp(),
 			name: name.to_vec(),
-			desc: description.to_vec(),
+			topic: description.to_vec(),
 			drm_msg: msg,
 			drm_user: user,
 		}))

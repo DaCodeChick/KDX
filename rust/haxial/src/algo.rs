@@ -200,6 +200,40 @@ pub fn tcp_packet_crypt(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
     Ok(output)
 }
 
+/// TODO: similar to file_xfer_crypt?
+pub fn transform_block(block: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError> {
+    if block.len() != 16 {
+        return Err(CryptError::Length(16, block.len()));
+    }
+
+    let mut buf = vec![0u8; 16];
+	let buf32 = &mut [u32] = cast_slice_mut(&buf[..]);
+    let mut words = [
+        u32::from_ne_bytes(block[0..4].try_into().unwrap()),
+        u32::from_ne_bytes(block[4..8].try_into().unwrap()),
+        u32::from_ne_bytes(block[8..12].try_into().unwrap()),
+        u32::from_ne_bytes(block[12..16].try_into().unwrap()),
+    ];
+	
+	words.iter_mut().for_each(|w| *w = w.to_be());
+
+    if encrypt {
+        words[1] = words[1].rotate_right(17) ^ 0x5F547A17;
+        words[2] = words[2].rotate_right(4) ^ 0x69C83E35;
+        words[0] = words[0].rotate_left(7) ^ 0x1B20E200;
+        words[3] = words[3].rotate_right(5) ^ 0x8022E8D1;
+    } else {
+        words[0] = (words[2] ^ 0x1B20E200).rotate_left(7);
+        words[1] = (words[1] ^ 0x5F547A17).rotate_left(15);
+        words[2] = (words[2] ^ 0x69C83E35).rotate_right(4);
+        words[3] = (words[3] ^ 0x8022E8D1).rotate_left(5);
+    }
+
+    words.iter_mut().enumerate().for_each(|i, w| buf32[i] = u32::from_be(w));
+
+	Ok(buf)
+}
+
 /// Used for encryption of UDP packets (server<->tracker)
 #[inline]
 pub fn udp_packet_crypt(input: &[u8]) -> Result<Vec<u8>, CryptError> {

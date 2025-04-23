@@ -1,5 +1,4 @@
 use chrono::Local;
-use parking_lot::Mutex;
 use rand::random_range;
 use std::sync::Arc;
 
@@ -25,16 +24,16 @@ const DRM_USER: [&[u8]; 6] = [
     b"Diskartes",
 ];
 
-pub struct Chat<'a> {
+pub struct Chat {
     created: i64,
-    name: Vec<u8>,
-    topic: Vec<u8>,
-    drm_msg: Option<&'a [u8]>,
-    drm_user: Option<&'a [u8]>,
+    name: String,
+    topic: String,
+    drm_msg: Option<&'static [u8]>,
+    drm_user: Option<&'static [u8]>,
 }
 
-impl Chat<'_> {
-	pub fn new(name: &[u8], topic: &[u8]) -> Arc<Mutex<Self>> {
+impl Chat {
+	pub fn new(name: &str, topic: &str> -> Self {
 		let seed: usize = random_range(0, 300);
 		let msg = if seed < 10 { Some(DRM_MSG[seed]) } else { None };
 		let user = match seed {
@@ -47,12 +46,12 @@ impl Chat<'_> {
 			_ => None,
 		};
 
-		Arc::new(Mutex::new(Self {
+		Self {
 			created: Local::now().timestamp(),
-			name: name.to_vec(),
-			topic: description.to_vec(),
+			name: name.to_owned(),
+			topic: topic.to_owned(),
 			drm_msg: msg,
 			drm_user: user,
-		}))
+		}
 	}
 }

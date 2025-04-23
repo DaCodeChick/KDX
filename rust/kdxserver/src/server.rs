@@ -1,25 +1,31 @@
 use chrono::Local;
+use dashmap::DashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 mod chat;
 use chat::*;
 
-mod user;
-use user::*;
+mod client;
+use client::*;
+
+pub struct Server {
+	chats: Arc<DashMap<u32, Chat>>,
+	clients: Arc<DashMap<u64, Client>>,
+	bans: Arc<DashMap<SocketAddr, Ban>>,
+}
 
 #[derive(Debug)]
 pub struct Ban {
 	expires: i64,
-	addr: SocketAddr,
-	reason: Vec<u8>,
+	reason: String,
 }
 
 impl Ban {
-	pub fn new(addr: SocketAddr, duration: i64, reason: &[u8]) -> Self {
+	pub fn new(duration: i64, reason: &str) -> Self {
 		Self {
 			expires: Local::now().timestamp() + duration,
-			addr: addr,
-			reason: reason.to_vec(),
+			reason: reason.to_owned(),
 		}
 	}
 }

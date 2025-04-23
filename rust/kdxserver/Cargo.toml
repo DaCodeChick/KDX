@@ -8,9 +8,9 @@ haxial = { path = "../haxial", features = ["net"] }
 bitflags = "2.9.0"
 bytemuck = "1.22.0"
 chrono = "0.4.40"
+dashmap = "6.1.0"
 generic-array = "1.2.0"
 md-5 = "0.10.6"
-parking_lot = "0.12.3"
 rand = { version = "0.9.1", features = ["thread_rng"] }
-tokio = { version = "1.44.2", features = ["net", "parking_lot"] }
+tokio = { version = "1.44.2", features = ["net"] }
 twofish = "0.7.1"

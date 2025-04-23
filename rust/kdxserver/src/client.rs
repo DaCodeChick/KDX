@@ -1,34 +1,35 @@
 use chrono::Local;
-use parking_lot::Mutex;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
+use tokio::sync::mpsc;
 
 const KDX: u32 = 0x254B4458;
 const TXP: u32 = 0x25545850;
 
-pub struct Connection {
-    s: TcpStream,
-}
-
-pub struct User<'a> {
+pub struct Client {
     arrival: i64,
     //key: u32,
     tag: u32,
-    conn: Arc<Mutex<Connection>>,
     login: [u8; 31],
-    drm: &'a [u8],
+    drm: &'static [u8],
     drm_offset: u16,
 }
 
-impl User<'_> {
-    pub fn new(connection: Arc<Mutex<Connection>>, drm: &[u8]) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self {
+pub struct Connection {
+	client: Client,
+	conn: TcpStream,
+	addr: SocketAddr,
+}
+
+impl Client {
+    pub fn new(drm: &[u8]) -> Self {
+        Self {
             arrival: Local::now().timestamp(),
             tag: KDX, // always the case?
-            conn: Arc::clone(&connection),
             login: [0u8; 31],
             drm: drm,
             drm_offset: 0,
-        }))
+        }
     }
 }

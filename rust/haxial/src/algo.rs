@@ -200,7 +200,7 @@ pub fn tcp_packet_crypt(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
     Ok(output)
 }
 
-/// TODO: similar to file_xfer_crypt?
+/// TODO: similar to file_xfer_crypt? Give this a proper name
 pub fn transform_block(block: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError> {
     if block.len() != 16 {
         return Err(CryptError::Length(16, block.len()));

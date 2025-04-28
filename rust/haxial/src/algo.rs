@@ -35,7 +35,7 @@ const CRCTAB: [u32; 256] = [
     0xAB710D06, 0xA6322BDF, 0xA2F33668, 0xBCB4666D, 0xB8757BDA, 0xB5365D03, 0xB1F740B4,
 ];
 
-/// Pretty much the MD5 algorithm, but with a different count value and network endian.
+/// A simple MD5 implementation
 #[derive(Debug)]
 pub struct Md5 {
     state: [u32; 4],
@@ -45,6 +45,7 @@ pub struct Md5 {
 }
 
 impl Md5 {
+	/// Creates a new MD5 instance
     pub fn new() -> Self {
         Self {
             state: [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476],
@@ -93,6 +94,7 @@ impl Md5 {
         }
     }
 
+	/// Returns the MD5 hash as a 16-byte array
     pub fn report(&mut self) -> [u8; 16] {
         let mut digest = [0u8; 16];
         self.update(None);
@@ -226,9 +228,10 @@ impl Md5 {
     }
 }
 
+/// Error types for cryptographic operations
 #[derive(Debug)]
 pub enum CryptError {
-    Align(u8, usize),     // expected, got
+    Align(u8, usize), /// expected, got
     Length(usize, usize), // expected, got
 }
 
@@ -280,22 +283,9 @@ const fn ii(a: u32, b: u32, c: u32, d: u32, x: u32, s: u32, ac: u32) -> u32 {
         .wrapping_add(b)
 }
 
-/// A hybrid cryptographic hash function combining MD5 with Murmur 3 checksum augmentation.
-///
-/// # Behavior Details
-///   1. Computes standard MD5 hash (first 128 bits of output)
-///   2. Copies MD5 words [0] and [1] to output positions [5] and [6]
-///   3. Computes a FNV-1a checksum of input (with byte swapping) for position [7]
-///
-/// # Security Notes
-/// ❗ Not suitable for cryptographic purposes:
-/// - The checksum weakens collision resistance
-/// - Constant fallback breaks pseudorandomness
-/// - MD5 is considered cryptographically broken
-///
-/// # Design Quirks
-/// - The checksum at position [7] uses a FNV-1a sum of all input bytes
-/// - Positions [5..6] duplicate MD5 words [0..1] (purpose unclear)
+/// Computes the augmented MD5 hash of the given data.
+/// If the input is empty, it returns a predefined hash value.
+/// Otherwise, it computes the MD5 hash and returns it as an array of 8 u32 values.
 pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     if input.is_empty() {
         return [
@@ -318,7 +308,7 @@ pub fn augmented_md5(input: &[u8]) -> [u32; 8] {
     digest
 }
 
-/// Computes the cyclic redundancy code of the given data.
+/// Computes the CRC32 checksum of the given data
 pub fn crc32(input: &[u8], seed: u32) -> u32 {
     let mut crc = seed;
 
@@ -329,7 +319,10 @@ pub fn crc32(input: &[u8], seed: u32) -> u32 {
     crc
 }
 
-/// This is a multi-purpose LCG XOR encryption algorithm used in the KDX protocol.
+/// Encrypts or decrypts data using a simple algorithm
+/// The data must be aligned to 4 bytes.
+/// The function returns a Result containing the encrypted or decrypted data.
+/// If the data length is not a multiple of 4, an error is returned.
 pub fn data_crypt(input: &[u8], seed: u32, mul: u32, add: u32) -> Result<Vec<u8>, CryptError> {
     if input.len() & 3 != 0 {
         return Err(CryptError::Align(4, input.len() & 3));
@@ -351,11 +344,10 @@ pub fn data_crypt(input: &[u8], seed: u32, mul: u32, add: u32) -> Result<Vec<u8>
     Ok(output)
 }
 
-/// This is used for KDX file transfers.
-///
-/// # Arguments
-/// * `block` - Mutable 16-byte slice (must be exactly 16 bytes)
-/// * `decrypt` - Boolean flag (false = encrypt, true = decrypt)
+/// Encrypts or decrypts a file transfer block
+/// The block must be 16 bytes long.
+/// The function returns a Result containing the encrypted or decrypted block.
+/// If the block length is not 16, an error is returned.
 pub fn file_xfer_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
     if block.len() != 16 {
         return Err(CryptError::Length(16, block.len()));
@@ -398,7 +390,7 @@ pub fn file_xfer_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptErro
     Ok(buf)
 }
 
-/// Computes the FNV-1a checksum of the given data
+/// Computes the FNV-1a hash of the given data
 pub fn fnv1a(input: &[u8], seed: u32) -> u32 {
     let mut sum = seed;
 
@@ -409,14 +401,10 @@ pub fn fnv1a(input: &[u8], seed: u32) -> u32 {
     sum
 }
 
-/// Encrypts or decrypts a network packet for TCP
-///
-/// # Arguments
-/// * `key` - Initial key value
-/// * `data` - Data to encrypt/decrypt
-///
-/// # Safety
-/// Requires that `data.len()` is a multiple of 4 (32-bit aligned)
+/// Encrypts or decrypts TCP packets
+/// The key is a 32-bit integer, and the data must be aligned to 4 bytes.
+/// The function returns a Result containing the encrypted or decrypted data.
+/// If the data length is not a multiple of 4, an error is returned.
 pub fn tcp_packet_crypt(key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
     if data.len() & 3 != 0 {
         return Err(CryptError::Align(4, data.len() & 3));
@@ -475,7 +463,11 @@ pub fn transform_block(block: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptErro
     Ok(buf)
 }
 
-/// Used for encryption of UDP packets (server<->tracker)
+/// Encrypts or decrypts UDP packets
+/// The function uses a specific key and algorithm to transform the data.
+/// The data must be aligned to 4 bytes.
+/// The function returns a Result containing the encrypted or decrypted data.
+/// If the data length is not a multiple of 4, an error is returned.
 #[inline]
 pub fn udp_packet_crypt(input: &[u8]) -> Result<Vec<u8>, CryptError> {
     data_crypt(input, 0xA5A16C4A, 0x41D28485, 12843)

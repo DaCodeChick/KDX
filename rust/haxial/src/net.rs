@@ -11,6 +11,7 @@ pub enum PacketError {
 }
 
 /// A packet of data sent via TCP (client<->server)
+/// The first 4 bytes are the encryption key, which is not encrypted.
 #[derive(Default)]
 pub struct TCPPacket {
     key: u32, // The crypt key is not encrypted
@@ -21,6 +22,7 @@ pub struct TCPPacket {
 }
 
 impl TCPPacket {
+	/// Creates a new TCP packet with the given data.
     pub fn from_bytes(buf: &[u8]) -> Result<Self, PacketError> {
         let mut key = &buf[0..4];
         let key = key.get_u32();
@@ -58,8 +60,8 @@ impl TCPPacket {
         })
     }
 
-    /// Converts the packet to a byte slice. This does not include
-    /// the encryption key.
+    /// Creates a new TCP packet with the given data.
+	/// The key is not encrypted, but the rest of the packet is.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![];
 
@@ -88,7 +90,7 @@ impl TCPPacket {
     }
 }
 
-/// A packet of data sent via UDP (client/server<->tracker)
+//// A packet of data sent via UDP (client<->server)
 pub struct UDPPacket {
     ver: u16, // currently 0x1000
     crc: u32,

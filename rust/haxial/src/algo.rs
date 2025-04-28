@@ -45,7 +45,7 @@ pub struct Md5 {
 }
 
 impl Md5 {
-	/// Creates a new MD5 instance
+    /// Creates a new MD5 instance
     pub fn new() -> Self {
         Self {
             state: [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476],
@@ -55,6 +55,7 @@ impl Md5 {
         }
     }
 
+    /// Updates the MD5 state with the given input data
     pub fn update(&mut self, input: Option<&[u8]>) {
         if self.buf_len == 64 {
             self.transform(None);
@@ -94,7 +95,7 @@ impl Md5 {
         }
     }
 
-	/// Returns the MD5 hash as a 16-byte array
+    /// Returns the MD5 hash as a 16-byte array
     pub fn report(&mut self) -> [u8; 16] {
         let mut digest = [0u8; 16];
         self.update(None);
@@ -231,7 +232,8 @@ impl Md5 {
 /// Error types for cryptographic operations
 #[derive(Debug)]
 pub enum CryptError {
-    Align(u8, usize), /// expected, got
+    Align(u8, usize),
+    /// expected, got
     Length(usize, usize), // expected, got
 }
 

@@ -22,7 +22,7 @@ pub struct TCPPacket {
 }
 
 impl TCPPacket {
-	/// Creates a new TCP packet with the given data.
+    /// Creates a new TCP packet with the given data.
     pub fn from_bytes(buf: &[u8]) -> Result<Self, PacketError> {
         let mut key = &buf[0..4];
         let key = key.get_u32();
@@ -61,7 +61,7 @@ impl TCPPacket {
     }
 
     /// Creates a new TCP packet with the given data.
-	/// The key is not encrypted, but the rest of the packet is.
+    /// The key is not encrypted, but the rest of the packet is.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = vec![];
 

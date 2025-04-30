@@ -8,6 +8,10 @@ description = "Common Haxial KDX functionality"
 default = []
 net = ["bytes"]
 
+[dev-dependencies]
+anyhow = "1.0.97"
+hex = "0.4.3"
+
 [dependencies]
 bytemuck = "1.22.0"
 bytes = { version = "1.10.1", optional = true }

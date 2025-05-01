@@ -229,6 +229,15 @@ impl Md5 {
     }
 }
 
+/// A simple Twofish implementation
+pub struct Twofish {
+	sbox: [u32; 256],
+	keys: [u32; 40],
+}
+
+impl Twofish {
+}
+
 /// Error types for cryptographic operations
 #[derive(Debug)]
 pub enum CryptError {

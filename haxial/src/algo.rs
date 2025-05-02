@@ -40,30 +40,110 @@ const CRCTAB: [u32; 256] = [
 /// Computes the augmented MD5 hash of the given data.
 /// If the input is empty, it returns a predefined hash value.
 /// Otherwise, it computes the MD5 hash and returns it as an array of 8 u32 values.
-pub const fn augmented_md5(input: &[u8]) -> [u32; 8] {
+pub fn augmented_md5(input: &[u8]) -> [u8; 32] {
+    let mut digest = [0u8; 32];
+    let digest32: &mut [u32] = cast_slice_mut(&mut digest[..]);
+
     if input.is_empty() {
-        return [
+        digest32[0..8].copy_from_slice(&[
             0xEEA339DA, 0x6EBEAECA, 0xD4B6B5E, 0xBA298EBA, 0xEFBF5532, 0xC4B5A218, 0x90186095,
             0x907D8AF,
-        ];
+        ]);
+        return digest;
     }
 
     let mut md5 = Md5::new();
     md5.update(Some(&input[..]));
 
     let hash = md5.report();
-    let mut digest = [0u32; 8];
 
-    digest[0..4].copy_from_slice(cast_slice(&hash[..]));
-    digest[5] = digest[0];
-    digest[6] = digest[1];
-    digest[7] = fnv1a(&input[..], 1).to_be();
+    digest32[0..4].copy_from_slice(cast_slice(&hash[..]));
+    digest32[5] = digest32[0];
+    digest32[6] = digest32[1];
+    digest32[7] = fnv1a(&input[..], 1).to_be();
 
     digest
 }
 
+pub fn block_crypt(block: &[u8], decrypt: bool) -> Result<[u8; 16], CryptError> {
+    if block.len() != 16 {
+        return Err(CryptError::Length(16, block.len()));
+    }
+
+    let mut output = [0u8; 16];
+    let mut words = [
+        u32::from_ne_bytes(block[0..4].try_into().unwrap()),
+        u32::from_ne_bytes(block[4..8].try_into().unwrap()),
+        u32::from_ne_bytes(block[8..12].try_into().unwrap()),
+        u32::from_ne_bytes(block[12..16].try_into().unwrap()),
+    ];
+
+    words.iter_mut().for_each(|w| *w = w.to_be());
+
+    if !decrypt {
+        words[2] ^= 0xA95A759B;
+        words[0] ^= 0x6E7DFD34;
+        words[1] ^= 0xE152DA04;
+        words[3] ^= 0x6992E25;
+
+        words[2] = words[2].rotate_right(7);
+        words[0] = words[0].rotate_left(19);
+        words[1] = words[1].rotate_left(6);
+        words[3] = words[3].rotate_left(3);
+    } else {
+        words[0] = words[0].rotate_left(13) ^ 0x6E7DFD34;
+        words[1] = words[1].rotate_right(6) ^ 0xE152DA04;
+        words[2] = words[2].rotate_left(7) ^ 0xA95A759B;
+        words[3] = words[3].rotate_right(3) ^ 0x6992E25;
+    }
+
+    words.iter_mut().for_each(|w| *w = u32::from_be(*w));
+
+    output[0..4].copy_from_slice(&words[0].to_ne_bytes());
+    output[4..8].copy_from_slice(&words[1].to_ne_bytes());
+    output[8..12].copy_from_slice(&words[2].to_ne_bytes());
+    output[12..16].copy_from_slice(&words[3].to_ne_bytes());
+
+    Ok(output)
+}
+
+pub fn block_crypt2(block: &[u8], encrypt: bool) -> Result<[u8; 16], CryptError> {
+    if block.len() != 16 {
+        return Err(CryptError::Length(16, block.len()));
+    }
+
+    let mut output = [0u8; 16];
+    let mut words = [
+        u32::from_ne_bytes(block[0..4].try_into().unwrap()),
+        u32::from_ne_bytes(block[4..8].try_into().unwrap()),
+        u32::from_ne_bytes(block[8..12].try_into().unwrap()),
+        u32::from_ne_bytes(block[12..16].try_into().unwrap()),
+    ];
+
+    words.iter_mut().for_each(|w| *w = w.to_be());
+
+    if encrypt {
+        words[1] = words[1].rotate_right(17) ^ 0x5F547A17;
+        words[2] = words[2].rotate_right(4) ^ 0x69C83E35;
+        words[0] = words[0].rotate_left(7) ^ 0x1B20E200;
+        words[3] = words[3].rotate_right(5) ^ 0x8022E8D1;
+    } else {
+        words[0] = (words[2] ^ 0x1B20E200).rotate_left(7);
+        words[1] = (words[1] ^ 0x5F547A17).rotate_left(15);
+        words[2] = (words[2] ^ 0x69C83E35).rotate_right(4);
+        words[3] = (words[3] ^ 0x8022E8D1).rotate_left(5);
+    }
+
+    output[0..4].copy_from_slice(&words[0].to_ne_bytes());
+    output[4..8].copy_from_slice(&words[1].to_ne_bytes());
+    output[8..12].copy_from_slice(&words[2].to_ne_bytes());
+    output[12..16].copy_from_slice(&words[3].to_ne_bytes());
+
+    Ok(output)
+}
+
 /// Computes the CRC32 checksum of the given data
-pub const fn crc32(input: &[u8], mut seed: u32) -> u32 {
+pub fn crc32(input: &[u8], mut seed: u32) -> u32 {
     input.iter().for_each(|b| {
         seed = seed.wrapping_shl(8) ^ CRCTAB[(seed.wrapping_shr(24) ^ (*b as u32)) as usize]
     });
@@ -95,66 +175,20 @@ pub fn data_crypt(input: &[u8], mut seed: u32, mul: u32, add: u32) -> Result<Vec
     Ok(output)
 }
 
-/// Encrypts or decrypts a file transfer block
-/// The block must be 16 bytes long.
-/// The function returns a Result containing the encrypted or decrypted block.
-/// If the block length is not 16, an error is returned.
-pub const fn file_xfer_crypt(block: &[u8], decrypt: bool) -> Result<Vec<u8>, CryptError> {
-    if block.len() != 16 {
-        return Err(CryptError::Length(16, block.len()));
-    }
-
-    let mut buf = vec![0u8; 16];
-    let mut words = [
-        u32::from_ne_bytes(block[0..4].try_into().unwrap()),
-        u32::from_ne_bytes(block[4..8].try_into().unwrap()),
-        u32::from_ne_bytes(block[8..12].try_into().unwrap()),
-        u32::from_ne_bytes(block[12..16].try_into().unwrap()),
-    ];
-
-    words.iter_mut().for_each(|w| *w = w.to_be());
-
-    if !decrypt {
-        words[2] ^= 0xA95A759B;
-        words[0] ^= 0x6E7DFD34;
-        words[1] ^= 0xE152DA04;
-        words[3] ^= 0x6992E25;
-
-        words[2] = words[2].rotate_right(7);
-        words[0] = words[0].rotate_left(19);
-        words[1] = words[1].rotate_left(6);
-        words[3] = words[3].rotate_left(3);
-    } else {
-        words[0] = words[0].rotate_left(13) ^ 0x6E7DFD34;
-        words[1] = words[1].rotate_right(6) ^ 0xE152DA04;
-        words[2] = words[2].rotate_left(7) ^ 0xA95A759B;
-        words[3] = words[3].rotate_right(3) ^ 0x6992E25;
-    }
-
-    words.iter_mut().for_each(|w| *w = u32::from_be(*w));
-
-    buf[0..4].copy_from_slice(&words[0].to_ne_bytes());
-    buf[4..8].copy_from_slice(&words[1].to_ne_bytes());
-    buf[8..12].copy_from_slice(&words[2].to_ne_bytes());
-    buf[12..16].copy_from_slice(&words[3].to_ne_bytes());
-
-    Ok(buf)
-}
-
 /// Computes the FNV-1a hash of the given data
-pub const fn fnv1a(input: &[u8], mut seed: u32) -> u32 {
+pub fn fnv1a(input: &[u8], mut seed: u32) -> u32 {
     input
         .iter()
-        .for_each(|b| sum = sum.wrapping_mul(0x1000193) ^ (*b as u32));
+        .for_each(|b| seed = seed.wrapping_mul(0x1000193) ^ (*b as u32));
 
-    sum
+    seed
 }
 
 /// Encrypts or decrypts TCP packets
 /// The key is a 32-bit integer, and the data must be aligned to 4 bytes.
 /// The function returns a Result containing the encrypted or decrypted data.
 /// If the data length is not a multiple of 4, an error is returned.
-pub const fn tcp_packet_crypt(mut key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
+pub fn tcp_packet_crypt(mut key: u32, data: &[u8]) -> Result<Vec<u8>, CryptError> {
     if data.len() & 3 != 0 {
         return Err(CryptError::Align(4, data.len() & 3));
     }
@@ -174,45 +208,7 @@ pub const fn tcp_packet_crypt(mut key: u32, data: &[u8]) -> Result<Vec<u8>, Cryp
     Ok(output)
 }
 
-/// TODO: similar to file_xfer_crypt? Give this a proper name
-pub fn transform_block(block: &[u8], encrypt: bool) -> Result<Vec<u8>, CryptError> {
-    if block.len() != 16 {
-        return Err(CryptError::Length(16, block.len()));
-    }
-
-    let mut buf = vec![0u8; 16];
-    let buf32: &mut [u32] = cast_slice_mut(&mut buf[..]);
-    let mut words = [
-        u32::from_ne_bytes(block[0..4].try_into().unwrap()),
-        u32::from_ne_bytes(block[4..8].try_into().unwrap()),
-        u32::from_ne_bytes(block[8..12].try_into().unwrap()),
-        u32::from_ne_bytes(block[12..16].try_into().unwrap()),
-    ];
-
-    words.iter_mut().for_each(|w| *w = w.to_be());
-
-    if encrypt {
-        words[1] = words[1].rotate_right(17) ^ 0x5F547A17;
-        words[2] = words[2].rotate_right(4) ^ 0x69C83E35;
-        words[0] = words[0].rotate_left(7) ^ 0x1B20E200;
-        words[3] = words[3].rotate_right(5) ^ 0x8022E8D1;
-    } else {
-        words[0] = (words[2] ^ 0x1B20E200).rotate_left(7);
-        words[1] = (words[1] ^ 0x5F547A17).rotate_left(15);
-        words[2] = (words[2] ^ 0x69C83E35).rotate_right(4);
-        words[3] = (words[3] ^ 0x8022E8D1).rotate_left(5);
-    }
-
-    words
-        .iter()
-        .enumerate()
-        .for_each(|(i, &w)| buf32[i] = u32::from_be(w));
-
-    Ok(buf)
-}
-
 /// Encrypts or decrypts UDP packets
-/// The function uses a specific key and algorithm to transform the data.
 /// The data must be aligned to 4 bytes.
 /// The function returns a Result containing the encrypted or decrypted data.
 /// If the data length is not a multiple of 4, an error is returned.
@@ -229,13 +225,28 @@ mod tests {
     fn test_augmented_md5() {
         let input = b"Hello world!".to_vec();
         let digest = augmented_md5(&input);
+		let expected: &[u8] = &[207, 106, 219, 13, 32, 60, 162, 90, 236, 162, 29, 142, 224, 233, 57, 173, 0, 0, 0, 0, 207, 106, 219, 13, 32, 60, 162, 90, 12, 156, 127, 72];
 
         assert_eq!(
-            digest,
-            [
-                232483535, 1520581664, 2384306924, 2906253792, 0, 232483535, 1520581664, 1216322572
-            ]
-        );
+			&digest[..],
+			&expected[..]
+		);
+    }
+
+    #[test]
+    fn test_block_crypt_roundtrip() {
+        let data = [0u8; 16];
+        let enc = block_crypt(&data, false).unwrap();
+        let dec = block_crypt(&enc, true).unwrap();
+        assert_eq!(data, dec);
+    }
+
+    #[test]
+    fn test_block_crypt2_roundtrip() {
+        let data = [0u8; 16];
+        let enc = block_crypt2(&data, false).unwrap();
+        let dec = block_crypt2(&enc, true).unwrap();
+        assert_eq!(data, dec);
     }
 
     #[test]
@@ -263,14 +274,6 @@ mod tests {
             u32::from_be_bytes(dec[0..4].try_into().unwrap()),
             0x254B4458
         );
-    }
-
-    #[test]
-    fn test_file_xfer_crypt_roundtrip() {
-        let data = [0u8; 16];
-        let enc = file_xfer_crypt(&data, false).unwrap();
-        let dec = file_xfer_crypt(&enc, true).unwrap();
-        assert_eq!(&data[..], &dec[..]);
     }
 
     #[test]

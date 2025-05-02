@@ -1,3 +1,5 @@
+use bytemuck::{cast_slice, cast_slice_mut};
+
 /// A simple MD5 implementation
 #[derive(Debug)]
 pub struct Md5 {
@@ -9,7 +11,7 @@ pub struct Md5 {
 
 impl Md5 {
     /// Creates a new MD5 instance
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             state: [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476],
             count: [0xC3D2E1F0, 0],

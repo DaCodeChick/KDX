@@ -14,11 +14,12 @@ pub struct Client {
     login: [u8; 31],
     drm: &'static [u8],
     drm_offset: u16,
+	iv: [u8; 32],
 }
 
 pub struct Connection {
 	client: Client,
-	conn: TcpStream,
+	s: TcpStream,
 	addr: SocketAddr,
 }
 

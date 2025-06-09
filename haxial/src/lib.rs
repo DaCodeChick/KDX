@@ -17,10 +17,10 @@ cfg_if! {
 }
 
 /// Errors for cryptographic operations
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum CryptError {
-    /// expected, got
+    #[error("Expected an alignment of {0}, but got {1}")]
     Align(u8, usize),
-    /// expected, got
+    #[error("Expected a length of {0}, but got {1}")]
     Length(u8, usize),
 }

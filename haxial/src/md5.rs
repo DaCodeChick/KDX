@@ -1,10 +1,10 @@
 use bytemuck::{cast_slice, cast_slice_mut};
 
-/// A simple MD5 implementation
+/// A simple implementation of the MD5 hash algorithm
 #[derive(Debug)]
 pub struct Md5 {
-    state: [u32; 4],
-    count: [u32; 2],
+    state: [u32; 5],
+    count: u32,
     buf: [u8; 64],
     buf_len: usize,
 }
@@ -13,8 +13,8 @@ impl Md5 {
     /// Creates a new MD5 instance
     pub const fn new() -> Self {
         Self {
-            state: [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476],
-            count: [0xC3D2E1F0, 0],
+            state: [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0],
+            count: 0,
             buf: [0; 64],
             buf_len: 0,
         }
@@ -25,11 +25,11 @@ impl Md5 {
         if self.buf_len == 64 {
             self.transform(None);
             self.buf_len = 0;
-            self.count[1] = self.count[1].wrapping_add(1);
+            self.count += 1;
         }
 
         if let Some(mut data) = input {
-            if self.buf_len > 0 {
+            if self.buf_len != 0 {
                 while !data.is_empty() && self.buf_len < 64 {
                     self.buf[self.buf_len] = data[0];
                     self.buf_len += 1;
@@ -39,7 +39,7 @@ impl Md5 {
                 if self.buf_len == 64 {
                     self.transform(None);
                     self.buf_len = 0;
-                    self.count[1] = self.count[1].wrapping_add(1);
+                    self.count += 1;
                 }
 
                 if data.is_empty() {
@@ -49,8 +49,9 @@ impl Md5 {
 
             while data.len() >= 64 {
                 self.transform(Some(&data[..64]));
+                self.buf_len = 0;
+                self.count += 1;
                 data = &data[64..];
-                self.count[1] = self.count[1].wrapping_add(1);
             }
 
             data.iter().for_each(|&byte| {
@@ -60,44 +61,44 @@ impl Md5 {
         }
     }
 
-    /// Returns the MD5 hash as a 16-byte array
-    pub fn report(&mut self) -> [u8; 16] {
-        let mut digest = [0u8; 16];
+    /// Returns the MD5 hash as a 20-byte array
+    pub fn report(&mut self) -> [u8; 20] {
+        let mut digest = [0u8; 20];
         self.update(None);
 
-        let bit_count: u64 = ((self.count[1] as u64) << 29)
-            + ((self.count[0] as u64) << 3)
-            + ((self.buf_len as u64) << 3);
+        let mut total_bytes = self
+            .count
+            .wrapping_mul(64)
+            .wrapping_add(self.buf_len as u64);
+        let total_bits = total_bytes.wrapping_mul(8);
 
         self.buf[self.buf_len] = 0x80;
         self.buf_len += 1;
-
         if self.buf_len > 56 {
-            while self.buf_len < 64 {
-                self.buf[self.buf_len] = 0;
-                self.buf_len += 1;
-            }
-            self.transform(None);
-            self.buf_len = 0;
+            self.buf[self.buf_len..64].fill(0);
+            self.update(None);
         }
 
-        self.buf[self.buf_len..56].fill(0);
-        self.buf[56..64]
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, b)| *b = (bit_count >> (i << 3)) as u8);
+        self.buf[0..56].fill(0);
+        self.buf_len = 56;
+
+        let len_hi = (total_bits >> 32) as u32;
+        let len_lo = total_bits as u32;
+
+        self.buf[56..60].copy_from_slice(&len_hi.to_be_bytes());
+        self.buf[60..64].copy_from_slice(&len_lo.to_be_bytes());
 
         self.transform(None);
 
-        let digest32: &mut [u32] = cast_slice_mut(&mut digest[..]);
-        self.state
-            .iter()
-            .enumerate()
-            .for_each(|(i, &chunk)| digest32[i] = chunk.to_be());
+        self.state.iter().enumerate().for_each(|(i, &word)| {
+            let bytes = word.to_ne_bytes();
+            digest[i << 2..(i << 2) + 4].copy_from_slice(&bytes);
+        });
 
         self.state.fill(0);
-        self.count.fill(0);
         self.buf.fill(0);
+        self.count = 0;
+        self.buf_len = 0;
 
         digest
     }
@@ -107,6 +108,7 @@ impl Md5 {
         let mut b = self.state[1];
         let mut c = self.state[2];
         let mut d = self.state[3];
+        let e = self.state[4];
 
         let block: &[u32] = if let Some(block) = block {
             cast_slice(block)
@@ -114,83 +116,154 @@ impl Md5 {
             cast_slice(&self.buf[..])
         };
 
-        a = ff(a, b, c, d, block[0], 7, 0xD76AA478);
-        d = ff(d, a, b, c, block[1], 12, 0xE8C7B756);
-        c = ff(c, d, a, b, block[2], 17, 0x242070DB);
-        b = ff(b, c, d, a, block[3], 22, 0xC1BDCEEE);
-        a = ff(a, b, c, d, block[4], 7, 0xF57C0FAF);
-        d = ff(d, a, b, c, block[5], 12, 0x4787C62A);
-        c = ff(c, d, a, b, block[6], 17, 0xA8304613);
-        b = ff(b, c, d, a, block[7], 22, 0xFD469501);
-        a = ff(a, b, c, d, block[8], 7, 0x698098D8);
-        d = ff(d, a, b, c, block[9], 12, 0x8B44F7AF);
-        c = ff(c, d, a, b, block[10], 17, 0xFFFF5BB1);
-        b = ff(b, c, d, a, block[11], 22, 0x895CD7BE);
-        a = ff(a, b, c, d, block[12], 7, 0x6B901122);
-        d = ff(d, a, b, c, block[13], 12, 0xFD987193);
-        c = ff(c, d, a, b, block[14], 17, 0xA679438E);
-        b = ff(b, c, d, a, block[15], 22, 0x49B40821);
+        let mut x = [0u32; 16];
+        x.iter_mut()
+            .enumerate()
+            .for_each(|(i, x)| *x = block[i].to_be());
 
-        a = gg(a, b, c, d, block[1], 5, 0xF61E2562);
-        d = gg(d, a, b, c, block[6], 9, 0xC040B340);
-        c = gg(c, d, a, b, block[11], 14, 0x265E5A51);
-        b = gg(b, c, d, a, block[0], 20, 0xE9B6C7AA);
-        a = gg(a, b, c, d, block[5], 5, 0xD62F105D);
-        d = gg(d, a, b, c, block[10], 9, 0x02441453);
-        c = gg(c, d, a, b, block[15], 14, 0xD8A1E681);
-        b = gg(b, c, d, a, block[4], 20, 0xE7D3FBC8);
-        a = gg(a, b, c, d, block[9], 5, 0x21E1CDE6);
-        d = gg(d, a, b, c, block[14], 9, 0xC33707D6);
-        c = gg(c, d, a, b, block[3], 14, 0xF4D50D87);
-        b = gg(b, c, d, a, block[8], 20, 0x455A14ED);
-        a = gg(a, b, c, d, block[13], 5, 0xA9E3E905);
-        d = gg(d, a, b, c, block[2], 9, 0xFCEFA3F8);
-        c = gg(c, d, a, b, block[7], 14, 0x676F02D9);
-        b = gg(b, c, d, a, block[12], 20, 0x8D2A4C8A);
+        a = ff(a, b, c, d, x[0], 5, 0x5a827999).wrapping_add(e);
+        d = ff(d, a, b, c, x[1], 5, 0x5a827999).wrapping_add(e);
+        c = ff(c, d, a, b, x[2], 5, 0x5a827999).wrapping_add(e);
+        b = ff(b, c, d, a, x[3], 5, 0x5a827999).wrapping_add(e);
+        a = ff(a, b, c, d, x[4], 5, 0x5a827999).wrapping_add(e);
+        d = ff(d, a, b, c, x[5], 5, 0x5a827999).wrapping_add(e);
+        c = ff(c, d, a, b, x[6], 5, 0x5a827999).wrapping_add(e);
+        b = ff(b, c, d, a, x[7], 5, 0x5a827999).wrapping_add(e);
+        a = ff(a, b, c, d, x[8], 5, 0x5a827999).wrapping_add(e);
+        d = ff(d, a, b, c, x[9], 5, 0x5a827999).wrapping_add(e);
+        c = ff(c, d, a, b, x[10], 5, 0x5a827999).wrapping_add(e);
+        b = ff(b, c, d, a, x[11], 5, 0x5a827999).wrapping_add(e);
+        a = ff(a, b, c, d, x[12], 5, 0x5a827999).wrapping_add(e);
+        d = ff(d, a, b, c, x[13], 5, 0x5a827999).wrapping_add(e);
+        c = ff(c, d, a, b, x[14], 5, 0x5a827999).wrapping_add(e);
+        b = ff(b, c, d, a, x[15], 5, 0x5a827999).wrapping_add(e);
 
-        a = hh(a, b, c, d, block[5], 4, 0xFFFA3942);
-        d = hh(d, a, b, c, block[8], 11, 0x8771F681);
-        c = hh(c, d, a, b, block[11], 16, 0x6D9D6122);
-        b = hh(b, c, d, a, block[14], 23, 0xFDE5380C);
-        a = hh(a, b, c, d, block[1], 4, 0xA4BEEA44);
-        d = hh(d, a, b, c, block[4], 11, 0x4BDECFA9);
-        c = hh(c, d, a, b, block[7], 16, 0xF6BB4B60);
-        b = hh(b, c, d, a, block[10], 23, 0xBEBFBC70);
-        a = hh(a, b, c, d, block[13], 4, 0x289B7EC6);
-        d = hh(d, a, b, c, block[0], 11, 0xEAA127FA);
-        c = hh(c, d, a, b, block[3], 16, 0xD4EF3085);
-        b = hh(b, c, d, a, block[6], 23, 0x04881D05);
-        a = hh(a, b, c, d, block[9], 4, 0xD9D4D039);
-        d = hh(d, a, b, c, block[12], 11, 0xE6DB99E5);
-        c = hh(c, d, a, b, block[15], 16, 0x1FA27CF8);
-        b = hh(b, c, d, a, block[2], 23, 0xC4AC5665);
+        let mut x16 = x[0] ^ x[2] ^ x[8] ^ x[13];
+        x16 = x16.rotate_right(31);
+        a = ff(a, b, c, d, x16, 5, 0x5a827999).wrapping_add(e);
 
-        a = ii(a, b, c, d, block[0], 6, 0xF4292244);
-        d = ii(d, a, b, c, block[7], 10, 0x432AFF97);
-        c = ii(c, d, a, b, block[14], 15, 0xAB9423A7);
-        b = ii(b, c, d, a, block[5], 21, 0xFC93A039);
-        a = ii(a, b, c, d, block[12], 6, 0x655B59C3);
-        d = ii(d, a, b, c, block[3], 10, 0x8F0CCC92);
-        c = ii(c, d, a, b, block[10], 15, 0xFFEFF47D);
-        b = ii(b, c, d, a, block[1], 21, 0x85845DD1);
-        a = ii(a, b, c, d, block[8], 6, 0x6FA87E4F);
-        d = ii(d, a, b, c, block[15], 10, 0xFE2CE6E0);
-        c = ii(c, d, a, b, block[6], 15, 0xA3014314);
-        b = ii(b, c, d, a, block[13], 21, 0x4E0811A1);
-        a = ii(a, b, c, d, block[4], 6, 0xF7537E82);
-        d = ii(d, a, b, c, block[11], 10, 0xBD3AF235);
-        c = ii(c, d, a, b, block[2], 15, 0x2AD7D2BB);
-        b = ii(b, c, d, a, block[9], 21, 0xEB86D391);
+        let mut x17 = x[1] ^ x[3] ^ x[9] ^ x[14];
+        x17 = x17.rotate_right(31);
+        d = ff(d, a, b, c, x17, 5, 0x5a827999).wrapping_add(e);
 
-        self.state[0] = self.state[0].wrapping_add(a);
-        self.state[1] = self.state[1].wrapping_add(b);
-        self.state[2] = self.state[2].wrapping_add(c);
+        let mut x18 = x[2] ^ x[4] ^ x[10] ^ x[15];
+        x18 = x18.rotate_right(31);
+        c = ff(c, d, a, b, x18, 5, 0x5a827999).wrapping_add(e);
+
+        let mut x19 = x[3] ^ x[5] ^ x[11] ^ x16;
+        x19 = x19.rotate_right(31);
+        b = ff(b, c, d, a, x19, 5, 0x5a827999).wrapping_add(e);
+
+        a = gg(a, b, c, d, x[1], 5, 0x6ed9eba1).wrapping_add(e);
+        d = gg(d, a, b, c, x[6], 5, 0x6ed9eba1).wrapping_add(e);
+        c = gg(c, d, a, b, x[11], 5, 0x6ed9eba1).wrapping_add(e);
+        b = gg(b, c, d, a, x[0], 5, 0x6ed9eba1).wrapping_add(e);
+        a = gg(a, b, c, d, x[5], 5, 0x6ed9eba1).wrapping_add(e);
+        d = gg(d, a, b, c, x[10], 5, 0x6ed9eba1).wrapping_add(e);
+        c = gg(c, d, a, b, x[15], 5, 0x6ed9eba1).wrapping_add(e);
+        b = gg(b, c, d, a, x[4], 5, 0x6ed9eba1).wrapping_add(e);
+        a = gg(a, b, c, d, x[9], 5, 0x6ed9eba1).wrapping_add(e);
+        d = gg(d, a, b, c, x[14], 5, 0x6ed9eba1).wrapping_add(e);
+        c = gg(c, d, a, b, x[3], 5, 0x6ed9eba1).wrapping_add(e);
+        b = gg(b, c, d, a, x[8], 5, 0x6ed9eba1).wrapping_add(e);
+        a = gg(a, b, c, d, x[13], 5, 0x6ed9eba1).wrapping_add(e);
+        d = gg(d, a, b, c, x[2], 5, 0x6ed9eba1).wrapping_add(e);
+        c = gg(c, d, a, b, x[7], 5, 0x6ed9eba1).wrapping_add(e);
+        b = gg(b, c, d, a, x[12], 5, 0x6ed9eba1).wrapping_add(e);
+
+        let mut x20 = x[5] ^ x[7] ^ x[13] ^ x[0];
+        x20 = x20.rotate_right(31);
+        a = gg(a, b, c, d, x20, 5, 0x6ed9eba1).wrapping_add(e);
+
+        let mut x21 = x[6] ^ x[8] ^ x[14] ^ x[1];
+        x21 = x21.rotate_right(31);
+        d = gg(d, a, b, c, x21, 5, 0x6ed9eba1).wrapping_add(e);
+
+        let mut x22 = x[7] ^ x[9] ^ x[15] ^ x[2];
+        x22 = x22.rotate_right(31);
+        c = gg(c, d, a, b, x22, 5, 0x6ed9eba1).wrapping_add(e);
+
+        let mut x23 = x[8] ^ x[10] ^ x[0] ^ x[3];
+        x23 = x23.rotate_right(31);
+        b = gg(b, c, d, a, x23, 5, 0x6ed9eba1).wrapping_add(e);
+
+        a = hh(a, b, c, d, x[5], 5, 0x8f1bbcdc).wrapping_add(e);
+        d = hh(d, a, b, c, x[8], 5, 0x8f1bbcdc).wrapping_add(e);
+        c = hh(c, d, a, b, x[11], 5, 0x8f1bbcdc).wrapping_add(e);
+        b = hh(b, c, d, a, x[14], 5, 0x8f1bbcdc).wrapping_add(e);
+        a = hh(a, b, c, d, x[1], 5, 0x8f1bbcdc).wrapping_add(e);
+        d = hh(d, a, b, c, x[4], 5, 0x8f1bbcdc).wrapping_add(e);
+        c = hh(c, d, a, b, x[7], 5, 0x8f1bbcdc).wrapping_add(e);
+        b = hh(b, c, d, a, x[10], 5, 0x8f1bbcdc).wrapping_add(e);
+        a = hh(a, b, c, d, x[13], 5, 0x8f1bbcdc).wrapping_add(e);
+        d = hh(d, a, b, c, x[0], 5, 0x8f1bbcdc).wrapping_add(e);
+        c = hh(c, d, a, b, x[3], 5, 0x8f1bbcdc).wrapping_add(e);
+        b = hh(b, c, d, a, x[6], 5, 0x8f1bbcdc).wrapping_add(e);
+        a = hh(a, b, c, d, x[9], 5, 0x8f1bbcdc).wrapping_add(e);
+        d = hh(d, a, b, c, x[12], 5, 0x8f1bbcdc).wrapping_add(e);
+        c = hh(c, d, a, b, x[15], 5, 0x8f1bbcdc).wrapping_add(e);
+        b = hh(b, c, d, a, x[2], 5, 0x8f1bbcdc).wrapping_add(e);
+
+        let mut x24 = x[10] ^ x[12] ^ x[2] ^ x[7];
+        x24 = x24.rotate_right(31);
+        a = hh(a, b, c, d, x24, 5, 0x8f1bbcdc).wrapping_add(e);
+
+        let mut x25 = x[11] ^ x[13] ^ x[3] ^ x[8];
+        x25 = x25.rotate_right(31);
+        d = hh(d, a, b, c, x25, 5, 0x8f1bbcdc).wrapping_add(e);
+
+        let mut x26 = x[12] ^ x[14] ^ x[4] ^ x[9];
+        x26 = x26.rotate_right(31);
+        c = hh(c, d, a, b, x26, 5, 0x8f1bbcdc).wrapping_add(e);
+
+        let mut x27 = x[13] ^ x[15] ^ x[5] ^ x[10];
+        x27 = x27.rotate_right(31);
+        b = hh(b, c, d, a, x27, 5, 0x8f1bbcdc).wrapping_add(e);
+
+        a = ii(a, b, c, d, x[0], 5, 0xca62c1d6).wrapping_add(e);
+        d = ii(d, a, b, c, x[7], 5, 0xca62c1d6).wrapping_add(e);
+        c = ii(c, d, a, b, x[14], 5, 0xca62c1d6).wrapping_add(e);
+        b = ii(b, c, d, a, x[5], 5, 0xca62c1d6).wrapping_add(e);
+        a = ii(a, b, c, d, x[12], 5, 0xca62c1d6).wrapping_add(e);
+        d = ii(d, a, b, c, x[3], 5, 0xca62c1d6).wrapping_add(e);
+        c = ii(c, d, a, b, x[10], 5, 0xca62c1d6).wrapping_add(e);
+        b = ii(b, c, d, a, x[1], 5, 0xca62c1d6).wrapping_add(e);
+        a = ii(a, b, c, d, x[8], 5, 0xca62c1d6).wrapping_add(e);
+        d = ii(d, a, b, c, x[15], 5, 0xca62c1d6).wrapping_add(e);
+        c = ii(c, d, a, b, x[6], 5, 0xca62c1d6).wrapping_add(e);
+        b = ii(b, c, d, a, x[13], 5, 0xca62c1d6).wrapping_add(e);
+        a = ii(a, b, c, d, x[4], 5, 0xca62c1d6).wrapping_add(e);
+        d = ii(d, a, b, c, x[11], 5, 0xca62c1d6).wrapping_add(e);
+        c = ii(c, d, a, b, x[2], 5, 0xca62c1d6).wrapping_add(e);
+        b = ii(b, c, d, a, x[9], 5, 0xca62c1d6).wrapping_add(e);
+
+        let mut x28 = x[15] ^ x[1] ^ x[7] ^ x[12];
+        x28 = x28.rotate_right(31);
+        a = ii(a, b, c, d, x28, 5, 0xca62c1d6).wrapping_add(e);
+
+        let mut x29 = x[0] ^ x[2] ^ x[8] ^ x[13];
+        x29 = x29.rotate_right(31);
+        d = ii(d, a, b, c, x29, 5, 0xca62c1d6).wrapping_add(e);
+
+        let mut x30 = x[1] ^ x[3] ^ x[9] ^ x[14];
+        x30 = x30.rotate_right(31);
+        c = ii(c, d, a, b, x30, 5, 0xca62c1d6).wrapping_add(e);
+
+        let mut x31 = x[2] ^ x[4] ^ x[10] ^ x[15];
+        x31 = x31.rotate_right(31);
+        b = ii(b, c, d, a, x31, 5, 0xca62c1d6).wrapping_add(e);
+
+        self.state[0] = self.state[0]
+            .wrapping_add(c)
+            .wrapping_add((x[9] ^ x[1] ^ x[5] ^ x[12]).rotate_right(31))
+            .wrapping_add(a.rotate_left(5))
+            .wrapping_add(b ^ d ^ e)
+            .wrapping_add(0xca62c1d6);
+
+        self.state[1] = self.state[1].wrapping_add(a);
+        self.state[2] = self.state[2].wrapping_add(b.rotate_right(2));
         self.state[3] = self.state[3].wrapping_add(d);
-        self.count[0] = self.count[0].wrapping_add(64);
-
-        if self.count[0] < 64 {
-            self.count[1] = self.count[1].wrapping_add(1);
-        }
+        self.state[4] = self.state[4].wrapping_add(e);
     }
 }
 

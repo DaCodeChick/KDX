@@ -37,10 +37,7 @@ const CRCTAB: [u32; 256] = [
     0xAB710D06, 0xA6322BDF, 0xA2F33668, 0xBCB4666D, 0xB8757BDA, 0xB5365D03, 0xB1F740B4,
 ];
 
-/// Computes the augmented MD5 hash of the given data.
-/// If the input is empty, it returns a predefined hash value.
-/// Otherwise, it computes the MD5 hash and returns it as an array of 8 u32 values.
-pub fn augmented_md5(input: &[u8]) -> [u8; 32] {
+pub fn gen_key(input: &[u8]) -> [u8; 32] {
     let mut digest = [0u8; 32];
     let digest32: &mut [u32] = cast_slice_mut(&mut digest[..]);
 
@@ -57,7 +54,7 @@ pub fn augmented_md5(input: &[u8]) -> [u8; 32] {
 
     let hash = md5.report();
 
-    digest32[0..4].copy_from_slice(cast_slice(&hash[..]));
+    digest32[0..=4].copy_from_slice(cast_slice(&hash[..]));
     digest32[5] = digest32[0];
     digest32[6] = digest32[1];
     digest32[7] = fnv1a(&input[..], 1).to_be();
@@ -225,12 +222,12 @@ mod tests {
     fn test_augmented_md5() {
         let input = b"Hello world!".to_vec();
         let digest = augmented_md5(&input);
-		let expected: &[u8] = &[207, 106, 219, 13, 32, 60, 162, 90, 236, 162, 29, 142, 224, 233, 57, 173, 0, 0, 0, 0, 207, 106, 219, 13, 32, 60, 162, 90, 12, 156, 127, 72];
+        let expected: &[u8] = &[
+            207, 106, 219, 13, 32, 60, 162, 90, 236, 162, 29, 142, 224, 233, 57, 173, 0, 0, 0, 0,
+            207, 106, 219, 13, 32, 60, 162, 90, 12, 156, 127, 72,
+        ];
 
-        assert_eq!(
-			&digest[..],
-			&expected[..]
-		);
+        assert_eq!(&digest[..], &expected[..]);
     }
 
     #[test]
